@@ -1,0 +1,6 @@
+export const APP_NAME = 'Kubal Audit Platform'
+export const APP_CREATOR = 'Created by Nam Nguyen'
+export const APP_LOGO_PATH = '/logo.png'
+export const APP_TAGLINE = 'Audit planning and execution platform'
+export const APP_STORAGE_KEY = 'kubal-audit-tool:audit-library'
+export const LEGACY_APP_STORAGE_KEY = 'vda-audit-app:audit-library'

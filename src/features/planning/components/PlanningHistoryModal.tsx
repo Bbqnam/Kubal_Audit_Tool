@@ -1,0 +1,32 @@
+import { Modal, StatusBadge } from '../../../components/ui'
+import type { AuditPlanRecord } from '../../../types/planning'
+import { formatDateTime } from '../../../utils/dateUtils'
+
+export default function PlanningHistoryModal({ record, onClose }: { record: AuditPlanRecord; onClose: () => void }) {
+  const history = [...record.changeHistory].sort((left, right) => right.timestamp.localeCompare(left.timestamp))
+
+  return (
+    <Modal
+      title="Planning change history"
+      description="Trace scheduling, completion, cancellation, and linkage updates for this planned audit."
+      onClose={onClose}
+      actions={
+        <button type="button" className="button button-primary" onClick={onClose}>
+          Close
+        </button>
+      }
+    >
+      <div className="planning-history-list">
+        {history.map((item) => (
+          <div key={item.id} className="planning-history-item">
+            <div className="planning-history-item-header">
+              <StatusBadge value={item.action} />
+              <span>{formatDateTime(item.timestamp)}</span>
+            </div>
+            <strong>{item.summary}</strong>
+          </div>
+        ))}
+      </div>
+    </Modal>
+  )
+}
