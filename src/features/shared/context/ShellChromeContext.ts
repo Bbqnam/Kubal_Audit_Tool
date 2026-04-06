@@ -1,8 +1,10 @@
 import { createContext } from 'react'
 
 export type ShellChromeContextValue = {
-  isSidebarCollapsed: boolean
-  setSidebarCollapsed: (collapsed: boolean) => void
+  isMobileViewport: boolean
+  isSidebarOpen: boolean
+  closeSidebar: () => void
+  openSidebar: () => void
   toggleSidebar: () => void
 }
 

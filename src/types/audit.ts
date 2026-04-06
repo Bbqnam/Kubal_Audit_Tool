@@ -27,7 +27,9 @@ export type Vda63ChapterScope = 'inScope' | 'outOfScope'
 
 export type Vda63ChapterStatus = 'outOfScope' | 'notEvaluated' | 'inProgress' | 'completed' | 'downgraded'
 
-export type Vda63ChapterResult = 'normal' | 'followUp' | 'escalation' | 'downgraded' | 'neutral'
+export type Vda63Classification = 'A' | 'B' | 'C'
+
+export type Vda63ChapterResult = Vda63Classification | 'neutral'
 
 export type Vda63QuestionGroup = string
 
@@ -114,17 +116,45 @@ export type Vda65ChecklistItem = {
 export type ActionPlanItem = {
   id: string
   auditType: AuditType
+  reportItemId?: string | null
+  savedAt?: string | null
   processArea?: string
   clause?: string
   nonconformityType?: NonconformityType
   section: string
   finding: string
   action: string
+  containmentAction: string
+  rootCauseAnalysis: string
+  correctiveAction: string
+  preventiveAction: string
+  verificationOfEffectiveness: string
+  closureEvidence: string
   owner: string
   dueDate: string
   status: ActionPlanStatus
   comment: string
 }
+
+export type ActionPlanUpdatePatch = Partial<Pick<
+  ActionPlanItem,
+  | 'processArea'
+  | 'clause'
+  | 'nonconformityType'
+  | 'section'
+  | 'finding'
+  | 'action'
+  | 'containmentAction'
+  | 'rootCauseAnalysis'
+  | 'correctiveAction'
+  | 'preventiveAction'
+  | 'verificationOfEffectiveness'
+  | 'closureEvidence'
+  | 'owner'
+  | 'dueDate'
+  | 'status'
+  | 'comment'
+>>
 
 export type GenericAuditReportItem = {
   id: string
@@ -136,6 +166,7 @@ export type GenericAuditReportItem = {
   evidence: string
   statement: string
   recommendation: string
+  savedAt?: string | null
 }
 
 export type AppNavItem = {
@@ -179,7 +210,8 @@ export type Vda63SummaryResult = {
   inProgressChapterCount: number
   notEvaluatedChapterCount: number
   downgradeTriggered: boolean
-  finalStatus: 'Not evaluated' | 'In progress' | 'Approved' | 'Approved with follow-up' | 'Conditional approval' | 'Escalation required' | 'Downgraded'
+  finalGrade: Vda63Classification | null
+  finalStatus: 'Not evaluated' | 'In progress' | 'A - quality capable' | 'B - conditionally quality capable' | 'C - not quality capable'
 }
 
 export type Vda65Results = {
@@ -229,6 +261,7 @@ export type GenericAuditData = {
 
 export type AuditRecordBase = {
   id: string
+  legacyIds?: string[]
   auditType: AuditType
   standard: string
   planRecordId: string | null

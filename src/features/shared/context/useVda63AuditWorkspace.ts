@@ -1,6 +1,6 @@
 import { vda63QuestionBank } from '../../vda63/data/questionBank'
 import { buildVda63AuditQuestions, chapterOrder } from '../../../utils/auditUtils'
-import type { ActionPlanItem, AuditInfo, ScoreOption, Vda63ChapterKey, Vda63QuestionResponse } from '../../../types/audit'
+import type { ActionPlanItem, ActionPlanUpdatePatch, AuditInfo, ScoreOption, Vda63ChapterKey, Vda63QuestionResponse } from '../../../types/audit'
 import { useAuditWorkspace } from './useAuditWorkspace'
 
 function updateListItem<T extends { id: string }>(items: T[], id: string, patch: Partial<T>) {
@@ -112,11 +112,19 @@ export function useVda63AuditWorkspace() {
     },
     updateActionPlanItem: (
       id: string,
-      patch: Partial<Pick<ActionPlanItem, 'section' | 'finding' | 'action' | 'owner' | 'dueDate' | 'status' | 'comment'>>,
+      patch: ActionPlanUpdatePatch,
     ) => {
+      const nextPatch = { ...patch, savedAt: null }
+
       workspace.updateAuditRecord(audit.id, (current) => ({
         ...current,
-        actions: updateListItem<ActionPlanItem>(current.actions, id, patch as Partial<ActionPlanItem>),
+        actions: updateListItem<ActionPlanItem>(current.actions, id, nextPatch as Partial<ActionPlanItem>),
+      }))
+    },
+    saveActionPlanItem: (id: string) => {
+      workspace.updateAuditRecord(audit.id, (current) => ({
+        ...current,
+        actions: updateListItem<ActionPlanItem>(current.actions, id, { savedAt: new Date().toISOString() }),
       }))
     },
   }

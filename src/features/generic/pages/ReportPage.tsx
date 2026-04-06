@@ -15,6 +15,7 @@ import {
 } from '../data/nonconformityTemplate'
 import { getAuditTypeLabel } from '../../../data/auditTypes'
 import { useGenericAuditWorkspace } from '../../shared/context/useGenericAuditWorkspace'
+import { formatDateTime } from '../../../utils/dateUtils'
 
 function ClausePickerModal({
   standard,
@@ -127,9 +128,9 @@ export default function GenericAuditReportPage() {
     actionPlanItems,
     addReportItem,
     updateReportItem,
+    saveReportItem,
     deleteReportItem,
     updateReportSummary,
-    addActionFromReportItem,
   } = useGenericAuditWorkspace()
 
   const clauseOptions = getClauseOptionsForStandard(audit.standard)
@@ -208,7 +209,7 @@ export default function GenericAuditReportPage() {
 
       <Panel
         title="Nonconformity register"
-        description="Use one compact card per item. Start with type, process area, and clause, then capture the requirement, evidence, and formal statement."
+        description="Use one compact card per item. Start with type, process area, and clause, then capture the requirement, evidence, and formal nonconformity statement."
       >
         {reportItems.length ? (
           <div className="generic-report-list generic-report-list-rebuilt">
@@ -216,7 +217,12 @@ export default function GenericAuditReportPage() {
               <article key={item.id} className="generic-report-card generic-report-card-rebuilt">
                 <div className="generic-report-toolbar">
                   <div className="generic-report-toolbar-main">
-                    <span className="dashboard-widget-kicker">Item {index + 1}</span>
+                    <div className="generic-report-item-badges">
+                      <span className="dashboard-widget-kicker">Item {index + 1}</span>
+                      <span className={`generic-report-save-badge ${item.savedAt ? 'generic-report-save-badge-saved' : 'generic-report-save-badge-unsaved'}`}>
+                        {item.savedAt ? `Saved ${formatDateTime(item.savedAt)}` : 'Unsaved changes'}
+                      </span>
+                    </div>
                     <input
                       className="generic-report-title-input"
                       value={item.title}
@@ -225,8 +231,8 @@ export default function GenericAuditReportPage() {
                     />
                   </div>
                   <div className="generic-report-card-actions">
-                    <button type="button" className="button button-secondary button-small" onClick={() => addActionFromReportItem(item.id)}>
-                      <ButtonLabel icon="next" label="Create action" />
+                    <button type="button" className={`button button-small ${item.savedAt ? 'button-secondary' : 'button-primary'}`} onClick={() => saveReportItem(item.id)}>
+                      <ButtonLabel icon="save" label={item.savedAt ? 'Saved' : 'Save item'} />
                     </button>
                     <button type="button" className="button button-secondary button-small button-danger" onClick={() => deleteReportItem(item.id)}>
                       <ButtonLabel icon="delete" label="Delete item" />
@@ -266,13 +272,9 @@ export default function GenericAuditReportPage() {
                         className={`generic-report-picker-button ${item.clause ? 'generic-report-picker-button-filled' : ''}`}
                         onClick={() => setActiveClauseItemId(item.id)}
                       >
-                        <span className="generic-report-picker-button-label">Clause / requirement reference</span>
                         <span className="generic-report-picker-button-value">
                           {item.clause ? `${item.clause} ${getClauseTitle(audit.standard, item.clause)}` : 'Choose clause'}
                         </span>
-                        <small className="generic-report-picker-button-meta">
-                          {normalizedStandard ? `${normalizedStandard} table of contents` : 'Catalog'}
-                        </small>
                       </button>
                     ) : (
                       <input value={item.clause} onChange={(event) => updateReportItem(item.id, { clause: event.target.value })} placeholder="e.g. 8.5.1" />
@@ -310,16 +312,6 @@ export default function GenericAuditReportPage() {
                       placeholder="Write the formal nonconformity / observation statement for the report."
                     />
                   </label>
-
-                  <label className="field">
-                    <span>Recommended follow-up</span>
-                    <textarea
-                      rows={5}
-                      value={item.recommendation}
-                      onChange={(event) => updateReportItem(item.id, { recommendation: event.target.value })}
-                      placeholder="Recommended correction, containment, or improvement direction."
-                    />
-                  </label>
                 </div>
               </article>
             ))}
@@ -332,20 +324,20 @@ export default function GenericAuditReportPage() {
         )}
       </Panel>
 
-      <Panel title="Action plan extract" description="Actions created from report items or added manually remain visible here while you write the report.">
+      <Panel title="Action plan extract" description="Linked action-plan items stay visible here while you write the report, but the action content itself is managed on the action plan page.">
         {actionPlanItems.length ? (
           <ul className="stack-list">
             {actionPlanItems.map((item) => (
               <li key={item.id}>
                 <strong>{item.nonconformityType || 'Action'} · {item.processArea || item.section || 'No area set'}</strong>
-                <p>{item.finding || item.action || 'No action detail added yet.'}</p>
+                <p>{item.finding || 'No finding detail added yet.'}</p>
               </li>
             ))}
           </ul>
         ) : (
           <EmptyState
             title="No actions linked yet"
-            description="Use “Create action” on a report item or add actions in the action plan page."
+            description="Each nonconformity appears automatically here and on the action plan page. You can also add manual actions there."
           />
         )}
       </Panel>

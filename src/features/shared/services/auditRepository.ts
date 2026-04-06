@@ -1,6 +1,6 @@
 import type { AuditRecord } from '../../../types/audit'
 import { APP_STORAGE_KEY, LEGACY_APP_STORAGE_KEY } from '../../../data/branding'
-import { createSeedAuditRecords, normalizeAuditRecordShape, synchronizeAuditRecord } from './auditFactory'
+import { assignReadableAuditRouteIds, createSeedAuditRecords, normalizeAuditRecordShape, synchronizeAuditRecord } from './auditFactory'
 import type { AuditPlanRecord, YearlyPlanningChecklistItem } from '../../../types/planning'
 import { createSeedPlanningChecklist, createSeedPlanningRecords } from '../../planning/data/planningSeed'
 import { normalizePlanningRecordShape } from '../../planning/services/planningFactory'
@@ -51,7 +51,7 @@ export function createLocalStorageAuditRepository(): AuditRepository {
       try {
         const parsed = JSON.parse(rawValue) as WorkspaceSnapshot | AuditRecord[]
         const seedWorkspace = createSeedWorkspace()
-        const workspace = Array.isArray(parsed)
+        const rawWorkspace = Array.isArray(parsed)
           ? {
               ...seedWorkspace,
               audits: parsed.map((record) => synchronizeAuditRecord(normalizeAuditRecordShape(record), record.updatedAt)),
@@ -71,6 +71,24 @@ export function createLocalStorageAuditRepository(): AuditRepository {
               ),
               planningChecklist: Array.isArray(parsed.planningChecklist) ? parsed.planningChecklist : seedWorkspace.planningChecklist,
             }
+
+        const { audits, idMap } = assignReadableAuditRouteIds(rawWorkspace.audits)
+        const planningRecords = rawWorkspace.planningRecords.map((record) => {
+          if (!record.linkedAuditId) {
+            return record
+          }
+
+          return {
+            ...record,
+            linkedAuditId: idMap.get(record.linkedAuditId) ?? record.linkedAuditId,
+          }
+        })
+        const workspace = {
+          ...rawWorkspace,
+          audits,
+          planningRecords,
+          planningYears: mergePlanningYears(planningRecords, rawWorkspace.planningYears),
+        }
 
         window.localStorage.setItem(APP_STORAGE_KEY, JSON.stringify(workspace))
         if (window.localStorage.getItem(LEGACY_APP_STORAGE_KEY)) {

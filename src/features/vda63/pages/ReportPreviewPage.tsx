@@ -18,13 +18,13 @@ export default function Vda63ReportPreviewPage() {
   const relevantActions = actionPlanItems
   const downgradeChapters = summary.chapters.filter((chapter) => chapter.downgradeTriggered).map((chapter) => chapter.chapter)
   const conclusionText = summary.downgradeTriggered
-    ? 'The process audit identified at least one star-question failure. The audited process requires escalated follow-up before it can be classified as stable.'
+    ? 'The process audit triggered one or more VDA 6.3 downgrade rules. The final A/B/C classification therefore reflects both achievement level and downgrade constraints.'
     : summary.overallPercent === null
       ? 'The process audit has not yet produced a completed chapter result and remains neutral.'
-      : `The audited process achieved ${summary.overallPercent}% and is assessed as ${summary.finalStatus.toLowerCase()}.`
+      : `The audited process achieved an arithmetic achievement level of ${summary.overallPercent}% and is assessed as ${summary.finalStatus}.`
   const scopedChapters = summary.chapters.filter((chapter) => chapter.scope === 'inScope').map((chapter) => chapter.chapter)
   const auditCarriedOutText = scopedChapters.length
-    ? `The audit scope currently covers chapters ${scopedChapters.join(', ')}. Only completed in-scope chapters contribute to the formal result.`
+    ? `The audit scope currently covers chapters ${scopedChapters.join(', ')}. Only completed in-scope chapters contribute to the formal A/B/C classification.`
     : 'No VDA 6.3 chapter is currently marked as in scope.'
 
   return (
@@ -58,11 +58,11 @@ export default function Vda63ReportPreviewPage() {
               { label: 'In progress', tone: 'progress' },
               { label: 'Not evaluated', tone: 'attention' },
               { label: 'Out of scope', tone: 'muted' },
-              { label: 'Downgraded', tone: 'danger' },
+              { label: 'Downgraded by rule', tone: 'danger' },
             ]}
           />
           <div className="report-callout">
-            <span>Final result</span>
+            <span>Final classification</span>
             <StatusBadge value={summary.finalStatus} />
           </div>
           <ul className="report-summary-list">
@@ -108,10 +108,10 @@ export default function Vda63ReportPreviewPage() {
           <Panel title="Further action" description="Follow-up actions and downgrade observations.">
             <p className="panel-copy">
               {downgradeChapters.length
-                ? `Downgrade handling applies to ${downgradeChapters.join(', ')}. Corrective action closure is required before final release approval.`
+                ? `Downgrade handling applies to ${downgradeChapters.join(', ')}. Corrective action closure is required before the audit can be reclassified upward.`
                 : summary.inProgressChapterCount > 0
                   ? `${summary.inProgressChapterCount} chapter(s) are still in progress and remain outside the formal final result.`
-                  : 'No downgrade-triggering star questions were observed. Continue with the planned corrective actions and monitoring cadence.'}
+                  : 'No downgrade rule is currently active. Continue with the planned corrective actions and monitoring cadence.'}
             </p>
           </Panel>
         </div>

@@ -24,16 +24,43 @@ function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T
 }
 
-function createId() {
+function slugify(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+}
+
+function createId(prefix = 'audit') {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
-    return crypto.randomUUID()
+    return `${prefix}-${crypto.randomUUID()}`
   }
 
-  return `audit-${Math.random().toString(36).slice(2, 10)}`
+  return `${prefix}-${Math.random().toString(36).slice(2, 10)}`
 }
 
 function createTimestamp() {
   return new Date().toISOString()
+}
+
+export function createAuditRouteId(auditType: AuditType, auditDate: string, existingIds: Iterable<string> = []) {
+  const normalizedType = slugify(auditType) || 'audit'
+  const normalizedDate = /^\d{4}-\d{2}-\d{2}$/.test(auditDate) ? auditDate : createTimestamp().slice(0, 10)
+  const baseId = `${normalizedType}_${normalizedDate}`
+  const usedIds = new Set(existingIds)
+
+  if (!usedIds.has(baseId)) {
+    return baseId
+  }
+
+  let suffix = 2
+
+  while (usedIds.has(`${baseId}-${suffix}`)) {
+    suffix += 1
+  }
+
+  return `${baseId}-${suffix}`
 }
 
 function createTitle(auditType: AuditType, site?: string) {
@@ -70,6 +97,7 @@ function createBlankGenericReportItem(base?: Partial<GenericAuditReportItem>): G
     evidence: '',
     statement: '',
     recommendation: '',
+    savedAt: null,
     ...clonedBase,
     id: clonedBase.id ?? createId(),
   }
@@ -79,12 +107,20 @@ function createBlankActionPlanItem(auditType: AuditType, base?: Partial<ActionPl
   const clonedBase = clone(base ?? {})
 
   return {
+    reportItemId: null,
+    savedAt: null,
     processArea: '',
     clause: '',
     nonconformityType: 'Minor nonconformity' as NonconformityType,
     section: '',
     finding: '',
-    action: '',
+    action: clonedBase.action ?? '',
+    containmentAction: clonedBase.containmentAction ?? '',
+    rootCauseAnalysis: clonedBase.rootCauseAnalysis ?? '',
+    correctiveAction: clonedBase.correctiveAction ?? clonedBase.action ?? '',
+    preventiveAction: clonedBase.preventiveAction ?? '',
+    verificationOfEffectiveness: clonedBase.verificationOfEffectiveness ?? '',
+    closureEvidence: clonedBase.closureEvidence ?? '',
     owner: '',
     dueDate: '',
     status: 'Open',
@@ -101,6 +137,76 @@ function normalizeGenericReportItems(items: GenericAuditReportItem[] | undefined
 
 function normalizeActionPlanItems(items: ActionPlanItem[] | undefined, auditType: AuditType) {
   return (items ?? []).map((item) => createBlankActionPlanItem(auditType, item))
+}
+
+function createLinkedActionId(reportItemId: string) {
+  return `report-link-${reportItemId}`
+}
+
+function createLinkedActionFinding(reportItem: GenericAuditReportItem) {
+  return reportItem.title.trim() || reportItem.statement.trim()
+}
+
+function isLegacyReportActionMatch(action: ActionPlanItem, reportItem: GenericAuditReportItem) {
+  return (
+    !action.reportItemId
+    && action.processArea === reportItem.processArea
+    && action.clause === reportItem.clause
+    && action.nonconformityType === reportItem.nonconformityType
+    && action.section === reportItem.processArea
+    && action.finding === createLinkedActionFinding(reportItem)
+  )
+}
+
+function createLinkedActionItem(
+  auditType: AuditType,
+  reportItem: GenericAuditReportItem,
+  existingAction?: ActionPlanItem,
+) {
+  return {
+    ...createBlankActionPlanItem(auditType, existingAction),
+    id: existingAction?.id ?? createLinkedActionId(reportItem.id),
+    auditType,
+    reportItemId: reportItem.id,
+    processArea: reportItem.processArea,
+    clause: reportItem.clause,
+    nonconformityType: reportItem.nonconformityType,
+    section: reportItem.processArea,
+    finding: createLinkedActionFinding(reportItem),
+    action: existingAction?.action ?? '',
+    correctiveAction: existingAction?.correctiveAction ?? '',
+  } satisfies ActionPlanItem
+}
+
+function synchronizeGenericAuditActions(
+  reportItems: GenericAuditReportItem[],
+  actions: ActionPlanItem[] | undefined,
+  auditType: AuditType,
+) {
+  const normalizedActions = normalizeActionPlanItems(actions, auditType)
+  const consumedActionIds = new Set<string>()
+
+  const linkedActions = reportItems.map((reportItem) => {
+    const existingLinkedAction = normalizedActions.find((action) => action.reportItemId === reportItem.id || action.id === createLinkedActionId(reportItem.id))
+
+    if (existingLinkedAction) {
+      consumedActionIds.add(existingLinkedAction.id)
+      return createLinkedActionItem(auditType, reportItem, existingLinkedAction)
+    }
+
+    const matchingLegacyAction = normalizedActions.find((action) => !consumedActionIds.has(action.id) && isLegacyReportActionMatch(action, reportItem))
+
+    if (matchingLegacyAction) {
+      consumedActionIds.add(matchingLegacyAction.id)
+      return createLinkedActionItem(auditType, reportItem, matchingLegacyAction)
+    }
+
+    return createLinkedActionItem(auditType, reportItem)
+  })
+
+  const manualActions = normalizedActions.filter((action) => !action.reportItemId && !consumedActionIds.has(action.id))
+
+  return [...linkedActions, ...manualActions]
 }
 
 function createBlankVda63Responses() {
@@ -192,6 +298,7 @@ export function normalizeAuditRecordShape(record: AuditRecord): AuditRecord {
   if (record.auditType === 'vda65') {
     return {
       ...record,
+      legacyIds: Array.isArray(record.legacyIds) ? [...new Set(record.legacyIds.filter(Boolean))] : [],
       standard,
       planRecordId: record.planRecordId ?? null,
       data: {
@@ -209,18 +316,21 @@ export function normalizeAuditRecordShape(record: AuditRecord): AuditRecord {
   }
 
   if (record.auditType !== 'vda63') {
+    const reportItems = normalizeGenericReportItems((record.data as Partial<GenericAuditRecord['data']>).reportItems)
+
     return {
       ...record,
+      legacyIds: Array.isArray(record.legacyIds) ? [...new Set(record.legacyIds.filter(Boolean))] : [],
       standard,
       planRecordId: record.planRecordId ?? null,
-      actions: normalizeActionPlanItems(record.actions, record.auditType),
+      actions: synchronizeGenericAuditActions(reportItems, record.actions, record.auditType),
       data: {
         auditInfo: {
           ...createBlankAuditInfo(),
           ...record.data.auditInfo,
         },
         reportSummary: (record.data as Partial<GenericAuditRecord['data']>).reportSummary ?? '',
-        reportItems: normalizeGenericReportItems((record.data as Partial<GenericAuditRecord['data']>).reportItems),
+        reportItems,
       },
     }
   }
@@ -240,6 +350,7 @@ export function normalizeAuditRecordShape(record: AuditRecord): AuditRecord {
 
   return {
     ...record,
+    legacyIds: Array.isArray(record.legacyIds) ? [...new Set(record.legacyIds.filter(Boolean))] : [],
     standard,
     planRecordId: record.planRecordId ?? null,
     data: {
@@ -254,13 +365,14 @@ export function normalizeAuditRecordShape(record: AuditRecord): AuditRecord {
   }
 }
 
-export function createAuditRecord(auditType: AuditType): AuditRecord {
+export function createAuditRecord(auditType: AuditType, existingIds: Iterable<string> = []): AuditRecord {
   const now = createTimestamp()
+  const routeId = createAuditRouteId(auditType, now.slice(0, 10), existingIds)
 
   const record: AuditRecord =
     auditType === 'vda63'
       ? {
-          id: createId(),
+          id: routeId,
           auditType,
           standard: 'VDA 6.3',
           planRecordId: null,
@@ -282,7 +394,7 @@ export function createAuditRecord(auditType: AuditType): AuditRecord {
         }
       : auditType === 'vda65'
         ? {
-            id: createId(),
+            id: routeId,
             auditType,
             standard: 'VDA 6.5',
             planRecordId: null,
@@ -302,7 +414,7 @@ export function createAuditRecord(auditType: AuditType): AuditRecord {
             },
           }
       : {
-          id: createId(),
+          id: routeId,
           auditType,
           standard: getAuditStandardLabel(auditType),
           planRecordId: null,
@@ -330,7 +442,7 @@ export function createSeedAuditRecords(): AuditRecord[] {
 
   const seedRecords: AuditRecord[] = [
     {
-      id: createId(),
+      id: createAuditRouteId('vda63', vda63AuditInfo.date),
       auditType: 'vda63',
       standard: 'VDA 6.3',
       planRecordId: null,
@@ -351,7 +463,7 @@ export function createSeedAuditRecords(): AuditRecord[] {
       },
     },
     {
-      id: createId(),
+      id: createAuditRouteId('vda65', vda65AuditInfo.date),
       auditType: 'vda65',
       standard: 'VDA 6.5',
       planRecordId: null,
@@ -375,13 +487,14 @@ export function createSeedAuditRecords(): AuditRecord[] {
   return seedRecords.map((record) => synchronizeAuditRecord(normalizeAuditRecordShape(record), record.updatedAt))
 }
 
-export function duplicateAuditRecord(record: AuditRecord): AuditRecord {
+export function duplicateAuditRecord(record: AuditRecord, existingIds: Iterable<string> = []): AuditRecord {
   const now = createTimestamp()
+  const duplicatedId = createAuditRouteId(record.auditType, record.auditDate || now.slice(0, 10), existingIds)
   const duplicatedRecord: AuditRecord =
     record.auditType === 'vda63'
       ? ({
           ...clone(record),
-          id: createId(),
+          id: duplicatedId,
           planRecordId: null,
           title: `${record.title} Copy`,
           createdAt: now,
@@ -397,7 +510,7 @@ export function duplicateAuditRecord(record: AuditRecord): AuditRecord {
       : record.auditType === 'vda65'
         ? ({
           ...clone(record),
-          id: createId(),
+          id: duplicatedId,
           planRecordId: null,
           title: `${record.title} Copy`,
           createdAt: now,
@@ -411,7 +524,7 @@ export function duplicateAuditRecord(record: AuditRecord): AuditRecord {
         } satisfies Vda65AuditRecord)
         : ({
             ...clone(record),
-            id: createId(),
+            id: duplicatedId,
             planRecordId: null,
             title: `${record.title} Copy`,
             createdAt: now,
@@ -521,5 +634,33 @@ export function synchronizeAuditRecord(record: AuditRecord, updatedAt = createTi
     status: auditInfo.auditStatus,
     updatedAt,
     summary: summarizeAuditRecord(normalizedRecord),
+  }
+}
+
+export function assignReadableAuditRouteIds(records: AuditRecord[]) {
+  const usedIds = new Set<string>()
+  const idMap = new Map<string, string>()
+
+  const audits = records.map((record) => {
+    const nextId = createAuditRouteId(record.auditType, record.auditDate, usedIds)
+    usedIds.add(nextId)
+
+    if (nextId === record.id) {
+      idMap.set(record.id, record.id)
+      return normalizeAuditRecordShape(record)
+    }
+
+    idMap.set(record.id, nextId)
+
+    return normalizeAuditRecordShape({
+      ...record,
+      id: nextId,
+      legacyIds: [...new Set([...(record.legacyIds ?? []), record.id])],
+    })
+  })
+
+  return {
+    audits,
+    idMap,
   }
 }

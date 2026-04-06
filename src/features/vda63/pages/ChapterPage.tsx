@@ -23,11 +23,11 @@ function getChapterTone(chapterSummary: ReturnType<typeof calculateVda63ChapterS
     return 'default' as const
   }
 
-  if (chapterSummary.result === 'normal') {
+  if (chapterSummary.result === 'A') {
     return 'success' as const
   }
 
-  if (chapterSummary.result === 'followUp') {
+  if (chapterSummary.result === 'B') {
     return 'warning' as const
   }
 
@@ -72,7 +72,7 @@ export default function Vda63ChapterPage() {
         eyebrow="VDA 6.3 chapter review"
         eyebrowTone="vda63"
         title={`${chapter} - ${vda63ChapterTitles[chapter]}`}
-        subtitle="Compact digital audit sheet with aligned scoring, practical evidence capture, and clearer subgroup scanning."
+        subtitle="Compact digital audit sheet with workbook-aligned chapter scoring, practical evidence capture, and clearer subgroup scanning."
       />
 
       <div className="metrics-grid">
@@ -91,7 +91,7 @@ export default function Vda63ChapterPage() {
             {chapterSummary.scope === 'outOfScope'
               ? 'This chapter is currently out of scope. It stays neutral in the summary until you include it.'
               : chapterSummary.downgradeTriggered
-                ? 'A star question scored 0 in this chapter, so downgrade logic is active and the summary will flag it explicitly.'
+                ? 'A downgrade rule is active in this chapter, so the chapter classification is capped below its pure percentage result.'
                 : chapterSummary.status === 'inProgress'
                   ? 'This chapter is in progress. Partial scoring is shown separately from completed chapter results.'
                   : chapterSummary.status === 'notEvaluated'

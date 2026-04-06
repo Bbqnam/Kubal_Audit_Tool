@@ -1,37 +1,60 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ShellChromeContext, type ShellChromeContextValue } from './ShellChromeContext'
 
-const SIDEBAR_STATE_KEY = 'kubal-audit-tool:sidebar-collapsed'
-const NARROW_SCREEN_QUERY = '(max-width: 1200px)'
+const MOBILE_SCREEN_QUERY = '(max-width: 1180px)'
 
-function getDefaultCollapsedState() {
+function getIsMobileViewport() {
   if (typeof window === 'undefined') {
     return false
   }
 
-  const storedValue = window.localStorage.getItem(SIDEBAR_STATE_KEY)
-
-  if (storedValue !== null) {
-    return storedValue === 'true'
-  }
-
-  return window.matchMedia(NARROW_SCREEN_QUERY).matches
+  return window.matchMedia(MOBILE_SCREEN_QUERY).matches
 }
 
 export function ShellChromeProvider({ children }: { children: React.ReactNode }) {
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(getDefaultCollapsedState)
+  const [isMobileViewport, setIsMobileViewport] = useState(getIsMobileViewport)
+  const [isSidebarOpen, setIsSidebarOpen] = useState(() => !getIsMobileViewport())
 
   useEffect(() => {
-    window.localStorage.setItem(SIDEBAR_STATE_KEY, String(isSidebarCollapsed))
-  }, [isSidebarCollapsed])
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    const mediaQuery = window.matchMedia(MOBILE_SCREEN_QUERY)
+    const syncViewport = (matches: boolean) => {
+      setIsMobileViewport(matches)
+      setIsSidebarOpen(!matches)
+    }
+    const handleChange = (event: MediaQueryListEvent) => {
+      syncViewport(event.matches)
+    }
+
+    syncViewport(mediaQuery.matches)
+
+    if (typeof mediaQuery.addEventListener === 'function') {
+      mediaQuery.addEventListener('change', handleChange)
+
+      return () => {
+        mediaQuery.removeEventListener('change', handleChange)
+      }
+    }
+
+    mediaQuery.addListener(handleChange)
+
+    return () => {
+      mediaQuery.removeListener(handleChange)
+    }
+  }, [])
 
   const value = useMemo<ShellChromeContextValue>(
     () => ({
-      isSidebarCollapsed,
-      setSidebarCollapsed: setIsSidebarCollapsed,
-      toggleSidebar: () => setIsSidebarCollapsed((current) => !current),
+      isMobileViewport,
+      isSidebarOpen,
+      closeSidebar: () => setIsSidebarOpen(false),
+      openSidebar: () => setIsSidebarOpen(true),
+      toggleSidebar: () => setIsSidebarOpen((current) => !current),
     }),
-    [isSidebarCollapsed],
+    [isMobileViewport, isSidebarOpen],
   )
 
   return <ShellChromeContext.Provider value={value}>{children}</ShellChromeContext.Provider>

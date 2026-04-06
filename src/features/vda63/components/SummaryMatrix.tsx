@@ -34,7 +34,7 @@ export default function SummaryMatrix({
           <span>Evaluation matrix</span>
           <strong>Chapter result overview</strong>
         </div>
-        <p>Only in-scope, completed chapters contribute to the final result. Neutral rows stay neutral.</p>
+        <p>Only in-scope, completed chapters contribute to the final A/B/C classification. Neutral rows stay neutral.</p>
       </div>
 
       <div className="summary-matrix-list">
@@ -70,7 +70,7 @@ export default function SummaryMatrix({
                 <strong>{chapter.scoredQuestionCount}/{chapter.questionCount} scored</strong>
               </div>
               <div>
-                <span>Downgrade</span>
+                <span>Downgrade rule</span>
                 <strong>{chapter.downgradeTriggered ? 'Triggered' : chapter.percent === null ? 'n.e.' : 'No'}</strong>
               </div>
             </div>

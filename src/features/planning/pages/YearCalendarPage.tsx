@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { PageHeader, Panel } from '../../../components/ui'
 import { ButtonLabel } from '../../../components/icons'
@@ -19,15 +19,23 @@ type CalendarEditorState =
 
 const MONTH_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
+function parseRequestedMonth(value: string | null, fallbackMonth: number) {
+  const parsedValue = Number(value)
+
+  if (!Number.isFinite(parsedValue)) {
+    return fallbackMonth
+  }
+
+  return parsedValue >= 1 && parsedValue <= 12 ? Math.trunc(parsedValue) : fallbackMonth
+}
+
 export default function YearCalendarPage() {
   const navigate = useNavigate()
   const { planningRecords, audits, createAuditFromPlan, createPlanRecord, deletePlanRecord, getAuditById, getPlanById, updatePlanRecord } = useAuditLibrary()
   const [searchParams, setSearchParams] = useSearchParams()
   const currentDate = new Date()
   const currentYear = currentDate.getFullYear()
-  const requestedMonth = Number(searchParams.get('month'))
-  const resolvedMonth = requestedMonth >= 1 && requestedMonth <= 12 ? requestedMonth : currentDate.getMonth() + 1
-  const [selectedMonth, setSelectedMonth] = useState(resolvedMonth)
+  const resolvedMonth = parseRequestedMonth(searchParams.get('month'), currentDate.getMonth() + 1)
   const [editorState, setEditorState] = useState<CalendarEditorState | null>(null)
   const [completionRecordId, setCompletionRecordId] = useState<string | null>(null)
   const [historyRecordId, setHistoryRecordId] = useState<string | null>(null)
@@ -35,6 +43,7 @@ export default function YearCalendarPage() {
   const focusedRecordId = searchParams.get('record')
   const focusedRecord = focusedRecordId ? getPlanById(focusedRecordId) ?? null : null
   const selectedYear = currentYear
+  const selectedMonth = focusedRecord && focusedRecord.year === currentYear ? focusedRecord.month : resolvedMonth
   const { firstDay: selectedMonthStart, lastDay: selectedMonthEnd } = getMonthDateRange(selectedYear, selectedMonth)
   const selectedMonthRecords = planningRecords
     .filter((record) => record.plannedStart <= selectedMonthEnd.toISOString().slice(0, 10) && record.plannedEnd >= selectedMonthStart.toISOString().slice(0, 10))
@@ -47,27 +56,13 @@ export default function YearCalendarPage() {
   const editorRecord = editorState?.mode === 'edit' ? getPlanById(editorState.recordId) ?? null : null
   const completionRecord = completionRecordId ? getPlanById(completionRecordId) ?? null : null
   const historyRecord = historyRecordId ? getPlanById(historyRecordId) ?? null : null
-  const selectedPeriodLabel = useMemo(() => `${planningMonthLabels[selectedMonth - 1]} ${selectedYear}`, [selectedMonth, selectedYear])
+  const selectedPeriodLabel = `${planningMonthLabels[selectedMonth - 1]} ${selectedYear}`
   const searchParamString = searchParams.toString()
   const focusedRecordNeedsReframe = Boolean(
     focusedRecordId
     && focusedRecord
     && (focusedRecord.year !== currentYear || focusedRecord.month !== selectedMonth),
   )
-
-  useEffect(() => {
-    setSelectedMonth((current) => (current === resolvedMonth ? current : resolvedMonth))
-  }, [resolvedMonth])
-
-  useEffect(() => {
-    if (!focusedRecord || focusedRecord.year !== currentYear) {
-      return
-    }
-
-    if (focusedRecord.month !== selectedMonth) {
-      setSelectedMonth(focusedRecord.month)
-    }
-  }, [currentYear, focusedRecord, selectedMonth])
 
   useEffect(() => {
     const nextParams = new URLSearchParams(searchParams)
@@ -85,6 +80,20 @@ export default function YearCalendarPage() {
 
   function buildMonthStartDate(month = selectedMonth) {
     return `${selectedYear}-${String(month).padStart(2, '0')}-01`
+  }
+
+  function updateCalendarParams(nextMonth: number, nextRecordId?: string | null) {
+    const nextParams = new URLSearchParams(searchParams)
+    nextParams.set('month', String(nextMonth))
+    nextParams.delete('year')
+
+    if (nextRecordId) {
+      nextParams.set('record', nextRecordId)
+    } else {
+      nextParams.delete('record')
+    }
+
+    setSearchParams(nextParams, { replace: true })
   }
 
   function handleEditorSave(draft: PlanningEditorDraft) {
@@ -227,7 +236,7 @@ export default function YearCalendarPage() {
                   key={label}
                   type="button"
                   className={`calendar-pill ${monthNum === selectedMonth ? 'calendar-pill-active' : ''} ${hasRecords ? 'calendar-pill-has-data' : ''} ${isCurrentMonth ? 'calendar-pill-current' : ''}`}
-                  onClick={() => setSelectedMonth(monthNum)}
+                  onClick={() => updateCalendarParams(monthNum)}
                 >
                   {label}
                 </button>
@@ -259,11 +268,7 @@ export default function YearCalendarPage() {
           focusedRecordId={focusedRecordId}
           onSelectDay={(date) => setEditorState({ mode: 'create', defaultStartDate: date })}
           onSelectRecord={(recordId) => {
-            const nextParams = new URLSearchParams(searchParams)
-            nextParams.set('month', String(selectedMonth))
-            nextParams.set('record', recordId)
-            nextParams.delete('year')
-            setSearchParams(nextParams, { replace: true })
+            updateCalendarParams(selectedMonth, recordId)
             setEditorState({ mode: 'edit', recordId })
           }}
           onCompleteRecord={(recordId) => setCompletionRecordId(recordId)}

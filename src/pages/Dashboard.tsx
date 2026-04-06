@@ -1,6 +1,6 @@
 import { Link, useNavigate } from 'react-router-dom'
 import { useState, type FocusEvent as ReactFocusEvent, type MouseEvent as ReactMouseEvent } from 'react'
-import { AuditTypeBadge, PageHeader, StatusBadge, getStatusDisplayLabel } from '../components/ui'
+import { AuditTypeBadge, PageHeader, StatusBadge } from '../components/ui'
 import { ButtonLabel } from '../components/icons'
 import { getAuditRecordHomePath, getPlanningCalendarPath } from '../data/navigation'
 import { getAuditTypeLabel } from '../features/shared/services/auditSummary'
@@ -19,6 +19,7 @@ import {
 import type { ActionPlanStatus, AuditRecord, AuditType } from '../types/audit'
 import type { AuditPlanRecord } from '../types/planning'
 import { formatDate } from '../utils/dateUtils'
+import { getStatusDisplayLabel } from '../utils/statusDisplay'
 
 type DashboardPlanStatus = 'Completed' | 'Planned' | 'Upcoming' | 'In progress' | 'Overdue'
 type DashboardTone = 'green' | 'blue' | 'yellow' | 'orange' | 'red' | 'grey'

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useMemo } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { MetricCard, PageHeader, Panel, StatusBadge } from '../../../components/ui'
 import { ButtonLabel } from '../../../components/icons'
@@ -43,20 +43,32 @@ function CompletionBar({ completed, open, overdue, total }: { completed: number;
   )
 }
 
+function parseSearchMonth(value: string | null): number | 'all' {
+  if (value === null || value === 'all') {
+    return 'all'
+  }
+
+  const parsedValue = Number(value)
+
+  if (!Number.isFinite(parsedValue)) {
+    return 'all'
+  }
+
+  return Math.min(12, Math.max(1, Math.trunc(parsedValue)))
+}
+
 export default function PlanningReportsPage() {
   const { planningRecords } = useAuditLibrary()
   const currentYear = new Date().getFullYear()
   const [searchParams, setSearchParams] = useSearchParams()
-  const availableYears = [...new Set(planningRecords.map((r) => r.year))].sort((left, right) => left - right)
+  const availableYears = useMemo(
+    () => [...new Set(planningRecords.map((r) => r.year))].sort((left, right) => left - right),
+    [planningRecords],
+  )
   const fallbackYear = availableYears.includes(currentYear) ? currentYear : availableYears[availableYears.length - 1] ?? currentYear
-  const initialYear = availableYears.includes(Number(searchParams.get('year'))) ? Number(searchParams.get('year')) : fallbackYear
-  const initialMonthParam = searchParams.get('month')
-  const initialMonth = initialMonthParam === 'all' || initialMonthParam === null
-    ? 'all'
-    : Math.min(12, Math.max(1, Number(initialMonthParam)))
-  const [selectedYear, setSelectedYear] = useState(initialYear)
-  const [selectedMonth, setSelectedMonth] = useState<number | 'all'>(initialMonth)
-  const searchParamString = searchParams.toString()
+  const requestedYear = Number(searchParams.get('year'))
+  const selectedYear = availableYears.includes(requestedYear) ? requestedYear : fallbackYear
+  const selectedMonth = parseSearchMonth(searchParams.get('month'))
 
   const filteredByYear = planningRecords.filter((r) => r.year === selectedYear)
   const filteredRecords = selectedMonth === 'all'
@@ -78,23 +90,12 @@ export default function PlanningReportsPage() {
 
   const MONTH_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
-  useEffect(() => {
-    setSelectedYear((current) => (current === initialYear ? current : initialYear))
-  }, [initialYear])
-
-  useEffect(() => {
-    setSelectedMonth((current) => (current === initialMonth ? current : initialMonth))
-  }, [initialMonth])
-
-  useEffect(() => {
+  function updateFilters(nextYear: number, nextMonth: number | 'all') {
     const nextParams = new URLSearchParams(searchParams)
-    nextParams.set('year', String(selectedYear))
-    nextParams.set('month', String(selectedMonth))
-
-    if (nextParams.toString() !== searchParamString) {
-      setSearchParams(nextParams, { replace: true })
-    }
-  }, [searchParamString, searchParams, selectedMonth, selectedYear, setSearchParams])
+    nextParams.set('year', String(nextYear))
+    nextParams.set('month', String(nextMonth))
+    setSearchParams(nextParams, { replace: true })
+  }
 
   return (
     <div className="module-page planning-page">
@@ -112,13 +113,7 @@ export default function PlanningReportsPage() {
                 key={year}
                 type="button"
                 className={`calendar-pill ${year === selectedYear ? 'calendar-pill-active' : ''}`}
-                onClick={() => {
-                  setSelectedYear(year)
-                  const nextParams = new URLSearchParams(searchParams)
-                  nextParams.set('year', String(year))
-                  nextParams.set('month', String(selectedMonth))
-                  setSearchParams(nextParams, { replace: true })
-                }}
+                onClick={() => updateFilters(year, selectedMonth)}
               >
                 {year}
               </button>
@@ -131,13 +126,7 @@ export default function PlanningReportsPage() {
             <button
               type="button"
               className={`calendar-pill ${selectedMonth === 'all' ? 'calendar-pill-active' : ''}`}
-              onClick={() => {
-                setSelectedMonth('all')
-                const nextParams = new URLSearchParams(searchParams)
-                nextParams.set('year', String(selectedYear))
-                nextParams.set('month', 'all')
-                setSearchParams(nextParams, { replace: true })
-              }}
+              onClick={() => updateFilters(selectedYear, 'all')}
             >
               All
             </button>
@@ -146,13 +135,7 @@ export default function PlanningReportsPage() {
                 key={label}
                 type="button"
                 className={`calendar-pill ${selectedMonth === idx + 1 ? 'calendar-pill-active' : ''}`}
-                onClick={() => {
-                  setSelectedMonth(idx + 1)
-                  const nextParams = new URLSearchParams(searchParams)
-                  nextParams.set('year', String(selectedYear))
-                  nextParams.set('month', String(idx + 1))
-                  setSearchParams(nextParams, { replace: true })
-                }}
+                onClick={() => updateFilters(selectedYear, idx + 1)}
               >
                 {label}
               </button>

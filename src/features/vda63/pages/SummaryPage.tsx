@@ -13,11 +13,11 @@ import {
 import SummaryMatrix from '../components/SummaryMatrix'
 
 function getSummaryTone(summary: ReturnType<typeof buildVda63Summary>) {
-  if (summary.finalStatus === 'Downgraded' || summary.finalStatus === 'Escalation required') {
+  if (summary.finalGrade === 'C') {
     return 'danger' as const
   }
 
-  if (summary.finalStatus === 'Approved') {
+  if (summary.finalGrade === 'A') {
     return 'success' as const
   }
 
@@ -45,7 +45,7 @@ export default function Vda63SummaryPage() {
         eyebrow="VDA 6.3"
         eyebrowTone="vda63"
         title="Summary"
-        subtitle="Scope-aware evaluation view that separates neutral chapters from completed results and downgrade cases."
+        subtitle="Workbook-aligned evaluation view using achievement level EG plus the key A/B/C downgrade rules represented in this app."
         actions={
           <Link to={getAuditSectionPath(audit.id, 'vda63', 'action-plan')} className="button button-primary">
             <ButtonLabel icon="checklist" label="Open action plan" />
@@ -54,19 +54,19 @@ export default function Vda63SummaryPage() {
       />
 
       <div className="metrics-grid">
-        <MetricCard label="Audited score" value={overallPercentLabel} tone={finalResultTone} />
-        <MetricCard label="Final result" value={summary.finalStatus} tone={finalResultTone} />
+        <MetricCard label="Achievement level (EG)" value={overallPercentLabel} tone={finalResultTone} />
+        <MetricCard label="Final classification" value={summary.finalStatus} tone={finalResultTone} />
         <MetricCard label="Completed chapters" value={`${summary.completedChapterCount}/${summary.inScopeChapterCount}`} tone={summary.inProgressChapterCount > 0 ? 'warning' : 'success'} />
       </div>
 
-      <Panel title="Final evaluation" description="Only fully evaluated chapters that are in scope affect the final result.">
+      <Panel title="Final evaluation" description="The final class is based on the arithmetic average of completed in-scope chapter percentages and the VDA 6.3 downgrade rules.">
         <StatusLegend
           items={[
             { label: 'Completed', tone: 'neutral' },
             { label: 'In progress', tone: 'progress' },
             { label: 'Not evaluated', tone: 'attention' },
             { label: 'Out of scope', tone: 'muted' },
-            { label: 'Downgraded', tone: 'danger' },
+            { label: 'Downgraded by rule', tone: 'danger' },
           ]}
         />
         <div className="summary-evaluation">
@@ -74,13 +74,13 @@ export default function Vda63SummaryPage() {
           <p>
             {summary.overallPercent === null
               ? 'No in-scope chapter has been fully scored yet, so the summary remains neutral.'
-              : `Total audited score ${summary.totalScore} out of ${summary.maxScore}.`}
+              : `The current achievement level EG is ${summary.overallPercent}%, calculated as the arithmetic average of the completed in-scope chapter percentages.`}
             {' '}
             {summary.downgradeTriggered
-              ? 'At least one completed chapter triggered a star-question downgrade.'
+              ? 'At least one downgrade rule is active, so the final A/B/C class is limited accordingly.'
               : summary.inProgressChapterCount > 0
                 ? `${summary.inProgressChapterCount} chapter(s) are still in progress and excluded from the final result.`
-                : 'No downgrade is active.'}
+                : 'No downgrade rule is currently active.'}
           </p>
         </div>
       </Panel>

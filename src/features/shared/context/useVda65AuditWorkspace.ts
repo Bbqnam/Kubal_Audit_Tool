@@ -1,5 +1,6 @@
 import type {
   ActionPlanItem,
+  ActionPlanUpdatePatch,
   AuditInfo,
   ProductInfo,
   Vda65ChecklistItem,
@@ -103,11 +104,19 @@ export function useVda65AuditWorkspace() {
     },
     updateActionPlanItem: (
       id: string,
-      patch: Partial<Pick<ActionPlanItem, 'section' | 'finding' | 'action' | 'owner' | 'dueDate' | 'status' | 'comment'>>,
+      patch: ActionPlanUpdatePatch,
     ) => {
+      const nextPatch = { ...patch, savedAt: null }
+
       workspace.updateAuditRecord(audit.id, (current) => ({
         ...current,
-        actions: updateListItem<ActionPlanItem>(current.actions, id, patch as Partial<ActionPlanItem>),
+        actions: updateListItem<ActionPlanItem>(current.actions, id, nextPatch as Partial<ActionPlanItem>),
+      }))
+    },
+    saveActionPlanItem: (id: string) => {
+      workspace.updateAuditRecord(audit.id, (current) => ({
+        ...current,
+        actions: updateListItem<ActionPlanItem>(current.actions, id, { savedAt: new Date().toISOString() }),
       }))
     },
   }

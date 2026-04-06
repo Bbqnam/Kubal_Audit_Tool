@@ -1,4 +1,4 @@
-import type { ActionPlanItem, AuditInfo, GenericAuditReportItem } from '../../../types/audit'
+import type { ActionPlanItem, ActionPlanUpdatePatch, AuditInfo, GenericAuditReportItem } from '../../../types/audit'
 import { useAuditWorkspace } from './useAuditWorkspace'
 
 function createId() {
@@ -24,6 +24,7 @@ function createBlankReportItem(): GenericAuditReportItem {
     evidence: '',
     statement: '',
     recommendation: '',
+    savedAt: null,
   }
 }
 
@@ -31,12 +32,20 @@ function createBlankActionItem(auditType: ActionPlanItem['auditType']): ActionPl
   return {
     id: createId(),
     auditType,
+    reportItemId: null,
+    savedAt: null,
     processArea: '',
     clause: '',
     nonconformityType: 'Minor nonconformity',
     section: '',
     finding: '',
     action: '',
+    containmentAction: '',
+    rootCauseAnalysis: '',
+    correctiveAction: '',
+    preventiveAction: '',
+    verificationOfEffectiveness: '',
+    closureEvidence: '',
     owner: '',
     dueDate: '',
     status: 'Open',
@@ -119,11 +128,33 @@ export function useGenericAuditWorkspace() {
           return current
         }
 
+        const nextPatch = { ...patch }
+        const hasContentChange = Object.keys(nextPatch).some((key) => key !== 'savedAt')
+
+        if (hasContentChange) {
+          nextPatch.savedAt = null
+        }
+
         return {
           ...current,
           data: {
             ...current.data,
-            reportItems: updateListItem(current.data.reportItems, id, patch),
+            reportItems: updateListItem(current.data.reportItems, id, nextPatch),
+          },
+        }
+      })
+    },
+    saveReportItem: (id: string) => {
+      workspace.updateAuditRecord(audit.id, (current) => {
+        if (current.auditType === 'vda63' || current.auditType === 'vda65') {
+          return current
+        }
+
+        return {
+          ...current,
+          data: {
+            ...current.data,
+            reportItems: updateListItem(current.data.reportItems, id, { savedAt: new Date().toISOString() }),
           },
         }
       })
@@ -143,35 +174,6 @@ export function useGenericAuditWorkspace() {
         }
       })
     },
-    addActionFromReportItem: (id: string) => {
-      workspace.updateAuditRecord(audit.id, (current) => {
-        if (current.auditType === 'vda63' || current.auditType === 'vda65') {
-          return current
-        }
-
-        const source = current.data.reportItems.find((item) => item.id === id)
-
-        if (!source) {
-          return current
-        }
-
-        return {
-          ...current,
-          actions: [
-            ...current.actions,
-            {
-              ...createBlankActionItem(current.auditType),
-              processArea: source.processArea,
-              clause: source.clause,
-              nonconformityType: source.nonconformityType,
-              section: source.processArea,
-              finding: source.title || source.statement,
-              action: source.recommendation,
-            },
-          ],
-        }
-      })
-    },
     addActionPlanItem: () => {
       workspace.updateAuditRecord(audit.id, (current) => ({
         ...current,
@@ -183,11 +185,19 @@ export function useGenericAuditWorkspace() {
     },
     updateActionPlanItem: (
       id: string,
-      patch: Partial<Pick<ActionPlanItem, 'processArea' | 'clause' | 'nonconformityType' | 'section' | 'finding' | 'action' | 'owner' | 'dueDate' | 'status' | 'comment'>>,
+      patch: ActionPlanUpdatePatch,
     ) => {
+      const nextPatch = { ...patch, savedAt: null }
+
       workspace.updateAuditRecord(audit.id, (current) => ({
         ...current,
-        actions: updateListItem<ActionPlanItem>(current.actions, id, patch as Partial<ActionPlanItem>),
+        actions: updateListItem<ActionPlanItem>(current.actions, id, nextPatch as Partial<ActionPlanItem>),
+      }))
+    },
+    saveActionPlanItem: (id: string) => {
+      workspace.updateAuditRecord(audit.id, (current) => ({
+        ...current,
+        actions: updateListItem<ActionPlanItem>(current.actions, id, { savedAt: new Date().toISOString() }),
       }))
     },
   }

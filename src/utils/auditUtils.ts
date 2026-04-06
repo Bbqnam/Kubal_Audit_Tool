@@ -1,6 +1,7 @@
 import type {
   AuditType,
   Vda63AuditQuestion,
+  Vda63Classification,
   Vda63ChapterKey,
   Vda63ChapterResult,
   Vda63ChapterSummary,
@@ -46,24 +47,56 @@ export function isVda63ChapterInScope(chapterScope: Vda63ChapterKey[], chapter: 
   return chapterScope.includes(chapter)
 }
 
-function resolveVda63Result(percent: number | null, downgradeTriggered: boolean): Vda63ChapterResult {
-  if (percent === null) {
-    return 'neutral'
-  }
+function calculateAveragePercent(values: number[]) {
+  return values.length === 0 ? null : Math.round(values.reduce((sum, value) => sum + value, 0) / values.length)
+}
 
-  if (downgradeTriggered) {
-    return 'downgraded'
+function resolveVda63Classification(percent: number | null): Vda63Classification | null {
+  if (percent === null) {
+    return null
   }
 
   if (percent >= 90) {
-    return 'normal'
+    return 'A'
   }
 
   if (percent >= 80) {
-    return 'followUp'
+    return 'B'
   }
 
-  return 'escalation'
+  return 'C'
+}
+
+function downgradeClassification(
+  classification: Vda63Classification | null,
+  maxClassification: Vda63Classification,
+): Vda63Classification | null {
+  if (classification === null) {
+    return null
+  }
+
+  if (classification === 'C' || maxClassification === 'C') {
+    return 'C'
+  }
+
+  if (classification === 'B' || maxClassification === 'B') {
+    return 'B'
+  }
+
+  return 'A'
+}
+
+function getVda63FinalStatus(grade: Vda63Classification | null): Vda63SummaryResult['finalStatus'] {
+  switch (grade) {
+    case 'A':
+      return 'A - quality capable'
+    case 'B':
+      return 'B - conditionally quality capable'
+    case 'C':
+      return 'C - not quality capable'
+    default:
+      return 'Not evaluated'
+  }
 }
 
 export function getVda63ChapterStatusLabel(status: Vda63ChapterSummary['status']) {
@@ -83,14 +116,12 @@ export function getVda63ChapterStatusLabel(status: Vda63ChapterSummary['status']
 
 export function getVda63ChapterResultLabel(result: Vda63ChapterResult) {
   switch (result) {
-    case 'normal':
-      return 'Normal result'
-    case 'followUp':
-      return 'Follow-up'
-    case 'escalation':
-      return 'Escalation'
-    case 'downgraded':
-      return 'Downgraded'
+    case 'A':
+      return 'A - quality capable'
+    case 'B':
+      return 'B - conditionally quality capable'
+    case 'C':
+      return 'C - not quality capable'
     case 'neutral':
       return 'n.e.'
   }
@@ -127,12 +158,37 @@ export function calculateVda63ChapterSummary(
   const maxScore = chapterQuestions.length * 10
   const completionPercent = calculatePercent(scoredQuestionCount, chapterQuestions.length)
   const percent = scope === 'outOfScope' || scoredQuestionCount === 0 ? null : calculatePercent(totalScore, scoredQuestionCount * 10)
+  const baseClassification = resolveVda63Classification(percent)
+  const hasStarQuestionWithZero =
+    scope === 'inScope' &&
+    scoredQuestionCount > 0 &&
+    chapterQuestions.some((question) => question.isStarQuestion && question.score === 0)
+  const hasStarQuestionWithFour =
+    scope === 'inScope' &&
+    scoredQuestionCount > 0 &&
+    chapterQuestions.some((question) => question.isStarQuestion && question.score === 4)
+  const hasAnyZeroScore =
+    scope === 'inScope' &&
+    scoredQuestionCount > 0 &&
+    chapterQuestions.some((question) => question.score === 0)
+  let resolvedClassification = baseClassification
+
+  if (hasAnyZeroScore || hasStarQuestionWithFour) {
+    resolvedClassification = downgradeClassification(resolvedClassification, 'B')
+  }
+
+  if (hasStarQuestionWithZero) {
+    resolvedClassification = downgradeClassification(resolvedClassification, 'C')
+  }
+
   const downgradeTriggered =
     scope === 'inScope' &&
     scoredQuestionCount === chapterQuestions.length &&
-    chapterQuestions.some((question) => question.isStarQuestion && question.score === 0)
+    resolvedClassification !== null &&
+    baseClassification !== null &&
+    resolvedClassification !== baseClassification
   const starQuestionCount = chapterQuestions.filter((question) => question.isStarQuestion).length
-  const result = scope === 'outOfScope' ? 'neutral' : resolveVda63Result(percent, downgradeTriggered)
+  const result = scope === 'outOfScope' || resolvedClassification === null ? 'neutral' : resolvedClassification
   const status =
     scope === 'outOfScope'
       ? 'outOfScope'
@@ -167,14 +223,49 @@ export function buildVda63Summary(
 ): Vda63SummaryResult {
   const chapters = chapterOrder.map((chapter) => calculateVda63ChapterSummary(questions, chapter, chapterScope))
   const inScopeChapters = chapters.filter((chapter) => chapter.scope === 'inScope')
-  const auditedChapters = chapters.filter((chapter) => chapter.status === 'completed' || chapter.status === 'downgraded')
+  const auditedChapters = inScopeChapters.filter((chapter) => chapter.status === 'completed' || chapter.status === 'downgraded')
   const completedChapterCount = auditedChapters.length
   const inProgressChapterCount = chapters.filter((chapter) => chapter.status === 'inProgress').length
   const notEvaluatedChapterCount = chapters.filter((chapter) => chapter.status === 'notEvaluated').length
   const totalScore = auditedChapters.reduce((sum, chapter) => sum + chapter.totalScore, 0)
   const maxScore = auditedChapters.reduce((sum, chapter) => sum + chapter.maxScore, 0)
-  const overallPercent = auditedChapters.length === 0 ? null : calculatePercent(totalScore, maxScore)
-  const downgradeTriggered = auditedChapters.some((chapter) => chapter.downgradeTriggered)
+  const overallPercent = calculateAveragePercent(
+    auditedChapters.flatMap((chapter) => (chapter.percent === null ? [] : [chapter.percent])),
+  )
+  const allInScopeChaptersCompleted = inScopeChapters.length > 0 && auditedChapters.length === inScopeChapters.length
+  const completedInScopeQuestions = questions.filter((question) => {
+    if (!chapterScope.includes(question.chapter)) {
+      return false
+    }
+
+    const chapterSummary = chapters.find((chapter) => chapter.chapter === question.chapter)
+    return chapterSummary?.status === 'completed' || chapterSummary?.status === 'downgraded'
+  })
+  const hasAnyZeroScore = completedInScopeQuestions.some((question) => question.score === 0)
+  const hasStarQuestionWithFour = completedInScopeQuestions.some((question) => question.isStarQuestion && question.score === 4)
+  const hasStarQuestionWithZero = completedInScopeQuestions.some((question) => question.isStarQuestion && question.score === 0)
+  const hasChapterBelowEighty = auditedChapters.some((chapter) => chapter.percent !== null && chapter.percent < 80)
+  const hasChapterBelowSeventy = auditedChapters.some((chapter) => chapter.percent !== null && chapter.percent < 70)
+  // The extracted app bank preserves chapter/subgroup scoring, but not the workbook's P6 process-step rows (E1-E10).
+  const p6ElementSummaries = chapterScope.includes('P6') ? buildVda63ElementSummary(questions, 'P6') : []
+  const hasP6ElementBelowEighty = p6ElementSummaries.some((element) => element.percent !== null && element.percent < 80)
+  let finalGrade: Vda63SummaryResult['finalGrade'] = null
+
+  if (allInScopeChaptersCompleted) {
+    finalGrade = resolveVda63Classification(overallPercent)
+
+    if (hasAnyZeroScore || hasStarQuestionWithFour || hasChapterBelowEighty || hasP6ElementBelowEighty) {
+      finalGrade = downgradeClassification(finalGrade, 'B')
+    }
+
+    if (hasStarQuestionWithZero || hasChapterBelowSeventy) {
+      finalGrade = downgradeClassification(finalGrade, 'C')
+    }
+  }
+
+  const downgradeTriggered =
+    allInScopeChaptersCompleted &&
+    (hasAnyZeroScore || hasStarQuestionWithFour || hasStarQuestionWithZero || hasChapterBelowEighty || hasP6ElementBelowEighty)
 
   let finalStatus: Vda63SummaryResult['finalStatus']
 
@@ -182,16 +273,10 @@ export function buildVda63Summary(
     finalStatus = 'In progress'
   } else if (auditedChapters.length === 0) {
     finalStatus = 'Not evaluated'
-  } else if (downgradeTriggered) {
-    finalStatus = 'Downgraded'
-  } else if ((overallPercent ?? 0) >= 90) {
-    finalStatus = 'Approved'
-  } else if ((overallPercent ?? 0) >= 80) {
-    finalStatus = 'Approved with follow-up'
-  } else if ((overallPercent ?? 0) >= 70) {
-    finalStatus = 'Conditional approval'
+  } else if (!allInScopeChaptersCompleted) {
+    finalStatus = 'In progress'
   } else {
-    finalStatus = 'Escalation required'
+    finalStatus = getVda63FinalStatus(finalGrade)
   }
 
   return {
@@ -205,6 +290,7 @@ export function buildVda63Summary(
     inProgressChapterCount,
     notEvaluatedChapterCount,
     downgradeTriggered,
+    finalGrade,
     finalStatus,
   }
 }

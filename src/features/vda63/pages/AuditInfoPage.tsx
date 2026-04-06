@@ -153,7 +153,7 @@ export default function Vda63AuditInfoPage() {
           <DetailList
             items={[
               { label: 'Shared concept', value: 'Findings, comments, action plan, export center' },
-              { label: 'Scoring model', value: '0 / 4 / 6 / 8 / 10 with neutral handling for out-of-scope and not-evaluated chapters' },
+              { label: 'Scoring model', value: '0 / 4 / 6 / 8 / 10 with chapter EG percentages, arithmetic A/B/C classification, and downgrade rules' },
               { label: 'Reporting path', value: 'Summary -> Action Plan -> Report Preview' },
             ]}
           />

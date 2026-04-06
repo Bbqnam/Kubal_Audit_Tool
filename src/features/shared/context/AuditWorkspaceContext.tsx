@@ -3,7 +3,7 @@ import type { AuditRecord } from '../../../types/audit'
 import type { AuditPlanRecord } from '../../../types/planning'
 import { AuditWorkspaceContext } from './AuditWorkspaceValue'
 import type { AuditWorkspaceContextValue } from './AuditWorkspaceValue'
-import { changeAuditRecordType, createAuditRecord, duplicateAuditRecord, synchronizeAuditRecord } from '../services/auditFactory'
+import { changeAuditRecordType, createAuditRecord, createAuditRouteId, duplicateAuditRecord, synchronizeAuditRecord } from '../services/auditFactory'
 import { createLocalStorageAuditRepository } from '../services/auditRepository'
 import { getPlanExecutionAuditType, mergePlanningYears } from '../../planning/services/planningUtils'
 import {
@@ -52,7 +52,7 @@ export function AuditWorkspaceProvider({ children }: { children: React.ReactNode
       saveState,
       lastSavedAt,
       createAudit: (auditType) => {
-        const newRecord = createAuditRecord(auditType)
+        const newRecord = createAuditRecord(auditType, audits.map((audit) => audit.id))
         setSaveState('Saving')
         setAudits((current) => [newRecord, ...current])
         return newRecord
@@ -71,7 +71,7 @@ export function AuditWorkspaceProvider({ children }: { children: React.ReactNode
           return null
         }
 
-        const baseRecord = createAuditRecord(executionAuditType)
+        const baseRecord = createAuditRecord(executionAuditType, audits.map((audit) => audit.id))
         const reference = `${plan.standard}-${plan.year}-${String(plan.month).padStart(2, '0')}`
         const scope = `${plan.standard} / ${plan.processArea}`
         const hydratedRecord = synchronizeAuditRecord(
@@ -187,7 +187,7 @@ export function AuditWorkspaceProvider({ children }: { children: React.ReactNode
           return null
         }
 
-        const newRecord = duplicateAuditRecord(sourceRecord)
+        const newRecord = duplicateAuditRecord(sourceRecord, audits.map((audit) => audit.id))
         setSaveState('Saving')
         setAudits((current) => [newRecord, ...current])
         return newRecord
@@ -199,9 +199,34 @@ export function AuditWorkspaceProvider({ children }: { children: React.ReactNode
           return null
         }
 
-        const updatedRecord = changeAuditRecordType(sourceRecord, auditType)
+        const changedRecord = changeAuditRecordType(sourceRecord, auditType)
+        const existingIds = audits.filter((audit) => audit.id !== id).map((audit) => audit.id)
+        const nextId = createAuditRouteId(
+          changedRecord.auditType,
+          changedRecord.auditDate,
+          existingIds,
+        )
+        const updatedRecord = nextId === changedRecord.id
+          ? changedRecord
+          : {
+              ...changedRecord,
+              id: nextId,
+              legacyIds: [...new Set([...(changedRecord.legacyIds ?? []), id])],
+            }
         setSaveState('Saving')
         setAudits((current) => current.map((audit) => (audit.id === id ? updatedRecord : audit)))
+        if (updatedRecord.id !== id) {
+          setPlanningRecords((current) =>
+            current.map((record) => (
+              record.linkedAuditId === id
+                ? {
+                    ...record,
+                    linkedAuditId: updatedRecord.id,
+                  }
+                : record
+            )),
+          )
+        }
         return updatedRecord
       },
       deleteAudit: (id) => {
@@ -227,7 +252,7 @@ export function AuditWorkspaceProvider({ children }: { children: React.ReactNode
         setSaveState('Saving')
         setPlanningRecords((current) => current.filter((record) => record.id !== id))
       },
-      getAuditById: (id) => audits.find((audit) => audit.id === id),
+      getAuditById: (id) => audits.find((audit) => audit.id === id || audit.legacyIds?.includes(id)),
       getPlanById: (id) => planningRecords.find((record) => record.id === id),
       updateAuditRecord: (id, updater) => {
         setSaveState('Saving')

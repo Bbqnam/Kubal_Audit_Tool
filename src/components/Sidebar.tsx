@@ -1,5 +1,6 @@
 import { Link, NavLink } from 'react-router-dom'
 import { appNavigation } from '../data/navigation'
+import { useShellChrome } from '../features/shared/context/useShellChrome'
 import BrandLockup from './BrandLockup'
 
 function SidebarNavIcon({ to }: { to: string }) {
@@ -35,10 +36,17 @@ function SidebarNavIcon({ to }: { to: string }) {
   )
 }
 
-export default function Sidebar() {
+export default function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
+  const { isMobileViewport, isSidebarOpen } = useShellChrome()
+
   return (
-    <aside className="sidebar" aria-label="Primary navigation">
-      <Link to="/" className="brand-block sidebar-brand-link" aria-label="Go to dashboard">
+    <aside
+      id="app-sidebar"
+      className={`sidebar ${isMobileViewport ? 'sidebar-mobile' : ''} ${isSidebarOpen ? 'sidebar-open' : 'sidebar-closed'}`.trim()}
+      aria-label="Primary navigation"
+      aria-hidden={isMobileViewport && !isSidebarOpen}
+    >
+      <Link to="/" className="brand-block sidebar-brand-link" aria-label="Go to dashboard" onClick={onNavigate}>
         <BrandLockup variant="sidebar" subtitle="Audit platform" />
       </Link>
       <div className="sidebar-divider" aria-hidden="true">
@@ -53,6 +61,7 @@ export default function Sidebar() {
               end={item.to === '/'}
               className="sidebar-link"
               aria-label={item.label}
+              onClick={onNavigate}
             >
               <span className="sidebar-link-icon">
                 <SidebarNavIcon to={item.to} />

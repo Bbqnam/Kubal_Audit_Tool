@@ -16,6 +16,7 @@ export type AppIconName =
   | 'history'
   | 'home'
   | 'library'
+  | 'menu'
   | 'next'
   | 'open'
   | 'reports'
@@ -179,6 +180,16 @@ export function AppIcon({ name, className }: { name: AppIconName; className?: st
             <path d="M4.5 4.25h4.25V16H4.5z" />
             <path d="M11 4.25h4.5V16H11z" />
             <path d="M8.75 16h2.25" />
+          </IconStroke>
+        </svg>
+      )
+    case 'menu':
+      return (
+        <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false" className={resolvedClassName}>
+          <IconStroke>
+            <path d="M4 6.25h12" />
+            <path d="M4 10h12" />
+            <path d="M4 13.75h12" />
           </IconStroke>
         </svg>
       )

@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { getAuditToneStyle, getAuditTypeFamilyLabel, getAuditTypeLabel } from '../data/auditTypes'
 import type { AuditType } from '../types/audit'
+import { getStatusDisplayLabel } from '../utils/statusDisplay'
 import { ButtonLabel } from './icons'
 
 type PanelProps = {
@@ -138,10 +139,6 @@ export function DashboardCard({
       </span>
     </NavLink>
   )
-}
-
-export function getStatusDisplayLabel(value: string) {
-  return value === 'Overdue' ? 'Delayed' : value
 }
 
 export function StatusBadge({ value }: { value: string }) {
