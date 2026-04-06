@@ -1,5 +1,6 @@
 import ActionPlanTable from '../../../components/ActionPlanTable'
 import { MetricCard, PageHeader } from '../../../components/ui'
+import { ButtonLabel } from '../../../components/icons'
 import { getAuditTypeLabel } from '../../../data/auditTypes'
 import { useGenericAuditWorkspace } from '../../shared/context/useGenericAuditWorkspace'
 
@@ -16,7 +17,7 @@ export default function GenericActionPlanPage() {
         subtitle="Track findings, containment, owners, due dates, and closure notes for this audit record."
         actions={
           <button type="button" className="button button-primary" onClick={addActionPlanItem}>
-            Add action
+            <ButtonLabel icon="add" label="Add action" />
           </button>
         }
       />

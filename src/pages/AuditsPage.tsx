@@ -8,6 +8,7 @@ import { formatAuditType } from '../utils/auditUtils'
 import { formatDate, formatDateTime } from '../utils/dateUtils'
 import { exportAuditToExcel, exportAuditToPdf } from '../utils/exportUtils'
 import { AuditTypeBadge, MetricCard, PageHeader, Panel, StatusBadge } from '../components/ui'
+import { ButtonLabel } from '../components/icons'
 
 export default function AuditsPage() {
   const navigate = useNavigate()
@@ -56,7 +57,7 @@ export default function AuditsPage() {
       <PageHeader
         eyebrow="Audit history"
         title="Audit library"
-        subtitle="Start from one shared audit template, then choose the applicable audit type, standard, or specialised workflow inside the record."
+        subtitle="Shared audit register with cleaner access to templates, saved records, exports, and follow-up work."
       />
 
       <div className="metrics-grid">
@@ -65,20 +66,22 @@ export default function AuditsPage() {
         <MetricCard label="Completed" value={completedCount} tone="success" />
       </div>
 
-      <Panel title="Create new audit" description="Open one shared audit template, then switch it into the right audit structure from inside the record.">
+      <Panel title="Create new audit" description="Start from one template, then switch the record into the right audit workflow.">
         <div className="audit-create-grid">
           <button type="button" className="audit-create-card audit-create-card-template" onClick={handleCreateAudit}>
             <div className="audit-create-card-header">
               <AuditTypeBadge label="Shared template" />
               <span className="audit-create-standard">Choose the audit type inside the record</span>
             </div>
-            <strong>Open shared audit template</strong>
-            <p>Use one consistent starting point for every new audit. When a specialised template is selected, the app switches to the matching questionnaire or checklist workflow automatically.</p>
+            <strong>
+              <ButtonLabel icon="add" label="Open shared audit template" />
+            </strong>
+            <p>Use one consistent starting point, then move the record into the matching questionnaire or checklist flow.</p>
           </button>
         </div>
       </Panel>
 
-      <Panel title="Saved audits" description="Each record stores its latest audit data, result preview, and corrective-action set.">
+      <Panel title="Saved audits" description="Each record keeps its latest data, summary, and corrective-action set together.">
         <div className="table-card audit-library-table">
           <table>
             <thead>
@@ -119,17 +122,41 @@ export default function AuditsPage() {
                   </td>
                   <td>
                     <div className="row-actions">
-                      <button type="button" className="button button-secondary button-small" onClick={() => handleOpenAudit(audit)}>
-                        Open
+                      <button
+                        type="button"
+                        className="button button-secondary button-small button-icon-only"
+                        onClick={() => handleOpenAudit(audit)}
+                        aria-label={`Open ${audit.title}`}
+                        title="Open audit"
+                      >
+                        <ButtonLabel icon="open" label={`Open ${audit.title}`} hideLabel />
                       </button>
-                      <button type="button" className="button button-secondary button-small" onClick={() => handleDuplicateAudit(audit.id)}>
-                        Duplicate
+                      <button
+                        type="button"
+                        className="button button-secondary button-small button-icon-only"
+                        onClick={() => handleDuplicateAudit(audit.id)}
+                        aria-label={`Duplicate ${audit.title}`}
+                        title="Duplicate audit"
+                      >
+                        <ButtonLabel icon="duplicate" label={`Duplicate ${audit.title}`} hideLabel />
                       </button>
-                      <button type="button" className="button button-secondary button-small" onClick={() => handleExportAudit(audit, 'pdf')}>
-                        Export
+                      <button
+                        type="button"
+                        className="button button-secondary button-small button-icon-only"
+                        onClick={() => handleExportAudit(audit, 'pdf')}
+                        aria-label={`Export ${audit.title}`}
+                        title="Export audit"
+                      >
+                        <ButtonLabel icon="export" label={`Export ${audit.title}`} hideLabel />
                       </button>
-                      <button type="button" className="button button-secondary button-small button-danger" onClick={() => handleDeleteAudit(audit.id, audit.title)}>
-                        Delete
+                      <button
+                        type="button"
+                        className="button button-secondary button-small button-danger button-icon-only"
+                        onClick={() => handleDeleteAudit(audit.id, audit.title)}
+                        aria-label={`Delete ${audit.title}`}
+                        title="Delete audit"
+                      >
+                        <ButtonLabel icon="delete" label={`Delete ${audit.title}`} hideLabel />
                       </button>
                     </div>
                   </td>

@@ -353,6 +353,7 @@ export function createSeedPlanningRecords(): AuditPlanRecord[] {
         notes: `Transferred from Internal Audit Plan_Year Calendar.xlsx (${series.year}) for ${seed.processArea}.`,
         linkedAuditId: null,
         actualCompletionDate: seededStatus === 'Completed' ? plannedEnd : null,
+        completionDateChangeReason: '',
         completionResult: seededStatus === 'Completed' ? 'Closed' : '',
         completionSummary: seededStatus === 'Completed' ? 'Completed according to imported calendar history.' : '',
         createdAt: timestamp,

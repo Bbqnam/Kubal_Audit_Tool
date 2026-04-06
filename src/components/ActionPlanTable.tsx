@@ -1,5 +1,6 @@
 import type { ActionPlanItem } from '../types/audit'
 import { formatAuditType } from '../utils/auditUtils'
+import { formatDate } from '../utils/dateUtils'
 import { AuditTypeBadge, StatusBadge } from './ui'
 
 export default function ActionPlanTable({
@@ -13,7 +14,7 @@ export default function ActionPlanTable({
   ) => void
 }) {
   return (
-    <div className="table-card">
+    <div className="table-card data-table-card action-plan-table">
       <table>
         <thead>
           <tr>
@@ -29,8 +30,12 @@ export default function ActionPlanTable({
         </thead>
         <tbody>
           {items.map((item) => (
-            <tr key={item.id}>
-              <td><AuditTypeBadge auditType={item.auditType} label={formatAuditType(item.auditType)} size="small" /></td>
+            <tr key={item.id} className={!onUpdate && item.dueDate && new Date(item.dueDate) < new Date() && item.status !== 'Closed' ? 'table-row-attention' : ''}>
+              <td>
+                <div className="table-primary-cell">
+                  <AuditTypeBadge auditType={item.auditType} label={formatAuditType(item.auditType)} size="small" />
+                </div>
+              </td>
               <td>
                 {onUpdate ? <input value={item.section} onChange={(event) => onUpdate(item.id, { section: event.target.value })} /> : item.section}
               </td>
@@ -51,7 +56,7 @@ export default function ActionPlanTable({
                 {onUpdate ? (
                   <input type="date" value={item.dueDate} onChange={(event) => onUpdate(item.id, { dueDate: event.target.value })} />
                 ) : (
-                  item.dueDate
+                  <span className="table-subtle-cell">{item.dueDate ? formatDate(item.dueDate) : 'No date'}</span>
                 )}
               </td>
               <td>

@@ -4,6 +4,7 @@ import { createSeedAuditRecords, normalizeAuditRecordShape, synchronizeAuditReco
 import type { AuditPlanRecord, YearlyPlanningChecklistItem } from '../../../types/planning'
 import { createSeedPlanningChecklist, createSeedPlanningRecords } from '../../planning/data/planningSeed'
 import { normalizePlanningRecordShape } from '../../planning/services/planningFactory'
+import { mergePlanningYears } from '../../planning/services/planningUtils'
 
 export type AuditRepository = {
   loadWorkspace: () => WorkspaceSnapshot
@@ -13,6 +14,7 @@ export type AuditRepository = {
 export type WorkspaceSnapshot = {
   audits: AuditRecord[]
   planningRecords: AuditPlanRecord[]
+  planningYears: number[]
   planningChecklist: YearlyPlanningChecklistItem[]
 }
 
@@ -21,9 +23,12 @@ function hasStorage() {
 }
 
 function createSeedWorkspace(): WorkspaceSnapshot {
+  const planningRecords = createSeedPlanningRecords()
+
   return {
     audits: createSeedAuditRecords(),
-    planningRecords: createSeedPlanningRecords(),
+    planningRecords,
+    planningYears: mergePlanningYears(planningRecords),
     planningChecklist: createSeedPlanningChecklist(),
   }
 }
@@ -58,6 +63,12 @@ export function createLocalStorageAuditRepository(): AuditRepository {
               planningRecords: Array.isArray(parsed.planningRecords)
                 ? parsed.planningRecords.map((record) => normalizePlanningRecordShape(record))
                 : seedWorkspace.planningRecords,
+              planningYears: mergePlanningYears(
+                Array.isArray(parsed.planningRecords)
+                  ? parsed.planningRecords.map((record) => normalizePlanningRecordShape(record))
+                  : seedWorkspace.planningRecords,
+                Array.isArray(parsed.planningYears) ? parsed.planningYears : seedWorkspace.planningYears,
+              ),
               planningChecklist: Array.isArray(parsed.planningChecklist) ? parsed.planningChecklist : seedWorkspace.planningChecklist,
             }
 

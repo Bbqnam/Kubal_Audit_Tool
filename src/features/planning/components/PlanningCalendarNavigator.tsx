@@ -1,4 +1,5 @@
 import { getPlanMonthLabel, planningMonthLabels } from '../services/planningUtils'
+import { ButtonLabel } from '../../../components/icons'
 
 type PlanningCalendarNavigatorProps = {
   month: number
@@ -24,7 +25,7 @@ export default function PlanningCalendarNavigator({
   return (
     <div className="planning-calendar-hero">
       <button type="button" className="button button-secondary planning-calendar-hero-button" onClick={onPrevious}>
-        Previous
+        <ButtonLabel icon="back" label="Previous" />
       </button>
       <div className="planning-calendar-hero-main">
         <div className="planning-calendar-hero-picker">
@@ -53,7 +54,7 @@ export default function PlanningCalendarNavigator({
         <span>{count} audits in view</span>
       </div>
       <button type="button" className="button button-secondary planning-calendar-hero-button" onClick={onNext}>
-        Next
+        <ButtonLabel icon="next" label="Next" />
       </button>
     </div>
   )

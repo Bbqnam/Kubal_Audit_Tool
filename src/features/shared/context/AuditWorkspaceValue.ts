@@ -9,13 +9,15 @@ import type { AuditPlanRecord, PlanningChecklistYearStatus, YearlyPlanningCheckl
 export type AuditWorkspaceContextValue = {
   audits: AuditRecord[]
   planningRecords: AuditPlanRecord[]
+  planningYears: number[]
   planningChecklist: YearlyPlanningChecklistItem[]
   saveState: SaveState
   lastSavedAt: string | null
   createAudit: (auditType: AuditType) => AuditRecord
   createAuditFromPlan: (planId: string) => AuditRecord | null
-  createPlanRecord: (record: Omit<AuditPlanRecord, 'id' | 'year' | 'month' | 'createdAt' | 'updatedAt' | 'changeHistory' | 'actualCompletionDate' | 'completionResult' | 'completionSummary'> & {
+  createPlanRecord: (record: Omit<AuditPlanRecord, 'id' | 'year' | 'month' | 'createdAt' | 'updatedAt' | 'changeHistory' | 'actualCompletionDate' | 'completionDateChangeReason' | 'completionResult' | 'completionSummary'> & {
     actualCompletionDate?: string | null
+    completionDateChangeReason?: string
     completionResult?: AuditPlanRecord['completionResult']
     completionSummary?: string
   }) => AuditPlanRecord
@@ -28,6 +30,8 @@ export type AuditWorkspaceContextValue = {
   getPlanById: (id: string) => AuditPlanRecord | undefined
   updateAuditRecord: (id: string, updater: (record: AuditRecord) => AuditRecord) => void
   updatePlanRecord: (id: string, updater: (record: AuditPlanRecord) => AuditPlanRecord) => void
+  addPlanningYear: (year: number) => void
+  deletePlanningYear: (year: number) => void
   updatePlanningChecklistYear: (id: string, year: number, status: PlanningChecklistYearStatus) => void
 }
 

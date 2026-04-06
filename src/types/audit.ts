@@ -35,7 +35,11 @@ export type Vda63ProductProcessType = 'Product' | 'Process'
 
 export type Vda65ChecklistStatus = 'Pending' | 'OK' | 'NOK'
 
-export type Vda65Severity = 'Low' | 'Medium' | 'High' | 'Critical'
+export type Vda65DefectClass = 'A' | 'B' | 'C'
+
+export type Vda65ScoreBand = 'Very Good (OK)' | 'Good (OK)' | 'Satisfactory (OK)' | 'Not OK (Audit Failed)'
+
+export type Vda65AuditDecision = 'Not started' | 'In progress' | 'OK' | 'Audit Failed'
 
 export type ActionPlanStatus = 'Open' | 'In progress' | 'Closed'
 
@@ -90,11 +94,19 @@ export type Vda63AuditQuestion = Vda63QuestionBankItem & Vda63QuestionResponse
 
 export type Vda65ChecklistItem = {
   id: string
+  number: string
   section: string
   requirement: string
   status: Vda65ChecklistStatus
-  defectType: string
-  severity: Vda65Severity
+  specialCharacteristic: string
+  defectClass: Vda65DefectClass
+  unit: string
+  minTolerance: string
+  nominalValue: string
+  maxTolerance: string
+  sampleSize: number | null
+  defectCount: number
+  photoReference: string
   comment: string
 }
 
@@ -156,12 +168,15 @@ export type Vda63SummaryResult = {
 
 export type Vda65Results = {
   totalChecks: number
+  reviewedCount: number
   nokCount: number
   okCount: number
   pendingCount: number
-  defectOverview: Record<string, number>
-  severityOverview: Record<Vda65Severity, number>
-  resultSummary: 'Pass' | 'Conditional' | 'Fail'
+  totalDefects: number
+  totalScore: number
+  defectClassOverview: Record<Vda65DefectClass, number>
+  resultBand: Vda65ScoreBand | null
+  auditDecision: Vda65AuditDecision
 }
 
 export type ExportDescriptor = {

@@ -1,5 +1,6 @@
 import { useParams, Link } from 'react-router-dom'
 import ExportCenter from '../../../components/ExportCenter'
+import { ButtonLabel } from '../../../components/icons'
 import { getAuditSectionPath, vda63ChapterTitles } from '../../../data/navigation'
 import {
   chapterOrder,
@@ -44,7 +45,7 @@ export default function Vda63ChapterPage() {
         <h1>Unknown chapter</h1>
         <p>The requested VDA 6.3 chapter is not configured in this workspace.</p>
         <Link to={getAuditSectionPath(audit.id, 'vda63')} className="button button-primary">
-          Back to audit info
+          <ButtonLabel icon="back" label="Back to audit info" />
         </Link>
       </div>
     )
@@ -107,7 +108,7 @@ export default function Vda63ChapterPage() {
             className={chapterSummary.scope === 'inScope' ? 'button button-secondary' : 'button button-primary'}
             onClick={() => updateChapterScope(chapter, chapterSummary.scope !== 'inScope')}
           >
-            {chapterSummary.scope === 'inScope' ? 'Mark out of scope' : 'Add to scope'}
+            <ButtonLabel icon={chapterSummary.scope === 'inScope' ? 'close' : 'add'} label={chapterSummary.scope === 'inScope' ? 'Mark out of scope' : 'Add to scope'} />
           </button>
         </div>
       </Panel>
@@ -124,16 +125,16 @@ export default function Vda63ChapterPage() {
       <div className="module-actions">
         {previousChapter ? (
           <Link to={getAuditSectionPath(audit.id, 'vda63', previousChapter.toLowerCase())} className="button button-secondary">
-            Previous chapter
+            <ButtonLabel icon="back" label="Previous chapter" />
           </Link>
         ) : null}
         {nextChapter ? (
           <Link to={getAuditSectionPath(audit.id, 'vda63', nextChapter.toLowerCase())} className="button button-primary">
-            Next chapter
+            <ButtonLabel icon="next" label="Next chapter" />
           </Link>
         ) : (
           <Link to={getAuditSectionPath(audit.id, 'vda63', 'summary')} className="button button-primary">
-            Go to summary
+            <ButtonLabel icon="summary" label="Go to summary" />
           </Link>
         )}
       </div>

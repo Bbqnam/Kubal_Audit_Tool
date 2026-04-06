@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { AuditTypeBadge, MetricCard, PageHeader, Panel, StatusBadge } from '../../../components/ui'
+import { ButtonLabel } from '../../../components/icons'
 import { getAuditRecordHomePath } from '../../../data/navigation'
 import { getAuditToneStyle } from '../../../data/auditTypes'
 import { useAuditLibrary } from '../../shared/context/useAuditLibrary'
@@ -22,7 +23,6 @@ import {
   getPlanMonthLabel,
   getPlanExecutionAuditType,
   getPlanWindowLabel,
-  getPlanningYears,
   summarizePlans,
 } from '../services/planningUtils'
 import { updatePlanWithHistory } from '../services/planningFactory'
@@ -36,6 +36,7 @@ export default function PlanningOverviewPage() {
   const {
     audits,
     planningRecords,
+    planningYears,
     createPlanRecord,
     createAuditFromPlan,
     duplicatePlanRecord,
@@ -44,9 +45,12 @@ export default function PlanningOverviewPage() {
     getPlanById,
     updatePlanRecord,
   } = useAuditLibrary()
-  const planningYears = getPlanningYears(planningRecords)
   const currentDate = new Date()
-  const [selectedYear, setSelectedYear] = useState<number>(planningYears.includes(currentDate.getFullYear()) ? currentDate.getFullYear() : planningYears[planningYears.length - 1])
+  const [selectedYear, setSelectedYear] = useState<number>(
+    planningYears.includes(currentDate.getFullYear())
+      ? currentDate.getFullYear()
+      : planningYears[planningYears.length - 1] ?? currentDate.getFullYear(),
+  )
   const [selectedMonth, setSelectedMonth] = useState<number>(planningYears.includes(currentDate.getFullYear()) ? currentDate.getMonth() + 1 : 1)
   const [searchValue] = useState('')
   const [selectedStatus, setSelectedStatus] = useState<'all' | string>('all')
@@ -168,10 +172,26 @@ export default function PlanningOverviewPage() {
     setEditorState(null)
   }
 
-  function handleCompleteSave(payload: { actualCompletionDate: string; completionResult: AuditPlanCompletionResult; completionSummary: string; linkedAuditId: string | null }) {
+  function handleCompleteSave(payload: {
+    actualCompletionDate: string
+    completionDateChangeReason: string
+    completionResult: AuditPlanCompletionResult
+    completionSummary: string
+    linkedAuditId: string | null
+  }) {
     if (!completionRecord) {
       return
     }
+
+    const completionChanged = payload.actualCompletionDate !== completionRecord.plannedEnd
+    const completionSummary = payload.completionDateChangeReason
+      ? payload.completionSummary
+        ? `${payload.completionSummary}\n\nCompletion date change reason: ${payload.completionDateChangeReason}`
+        : `Completion date change reason: ${payload.completionDateChangeReason}`
+      : payload.completionSummary
+    const historySummary = completionChanged
+      ? `Marked completed on ${payload.actualCompletionDate} instead of planned end ${completionRecord.plannedEnd}. Reason: ${payload.completionDateChangeReason}.${payload.completionResult ? ` Result ${payload.completionResult}.` : ''}`
+      : `Marked completed on planned date ${payload.actualCompletionDate}${payload.completionResult ? ` with result ${payload.completionResult}` : ''}.`
 
     updatePlanRecord(completionRecord.id, (record) =>
       updatePlanWithHistory(
@@ -179,12 +199,13 @@ export default function PlanningOverviewPage() {
         {
           status: 'Completed',
           actualCompletionDate: payload.actualCompletionDate,
+          completionDateChangeReason: payload.completionDateChangeReason,
           completionResult: payload.completionResult,
-          completionSummary: payload.completionSummary,
+          completionSummary,
           linkedAuditId: payload.linkedAuditId,
         },
         'Completed',
-        `Marked completed on ${payload.actualCompletionDate}${payload.completionResult ? ` with result ${payload.completionResult}` : ''}.`,
+        historySummary,
       ),
     )
 
@@ -238,16 +259,14 @@ export default function PlanningOverviewPage() {
   return (
     <div className="module-page planning-page">
         <PageHeader
-        eyebrow="Calendar-first planning"
-        title="Planner"
-        subtitle="Use the monthly calendar to create, review, and adjust audits quickly, then use the table below for management detail."
+        eyebrow="Audit planning"
         actions={
           <div className="section-header-actions">
             <button type="button" className="button button-secondary" onClick={() => setEditorState({ mode: 'create', defaultStartDate: `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-01` })}>
-              Quick create
+              <ButtonLabel icon="add" label="Quick create" />
             </button>
             <button type="button" className="button button-primary" onClick={handleExport}>
-              Export plan
+              <ButtonLabel icon="export" label="Export plan" />
             </button>
           </div>
         }
@@ -303,11 +322,17 @@ export default function PlanningOverviewPage() {
           </label>
           <div className="planning-toolbar-actions">
             <button type="button" className="button button-secondary button-small" onClick={() => setCompletionRecordId(actionableCalendarRecord?.id ?? null)} disabled={!actionableCalendarRecord}>
-              Mark completed
+              <ButtonLabel icon="complete" label="Mark completed" />
             </button>
-            <Link to="/planning/calendar" className="button button-secondary button-small">Calendar</Link>
-            <Link to="/planning/three-year" className="button button-secondary button-small">3-year plan</Link>
-            <Link to="/planning/reports" className="button button-secondary button-small">Reports</Link>
+            <Link to="/planning/calendar" className="button button-secondary button-small">
+              <ButtonLabel icon="calendar" label="Calendar" />
+            </Link>
+            <Link to="/planning/three-year" className="button button-secondary button-small">
+              <ButtonLabel icon="calendar" label="3-year plan" />
+            </Link>
+            <Link to="/planning/reports" className="button button-secondary button-small">
+              <ButtonLabel icon="reports" label="Reports" />
+            </Link>
           </div>
         </div>
         {visibleLegendEntries.length ? (
@@ -323,6 +348,7 @@ export default function PlanningOverviewPage() {
           month={selectedMonth}
           onSelectDay={handleSelectDay}
           onSelectRecord={(recordId) => setEditorState({ mode: 'edit', recordId })}
+          onCompleteRecord={(recordId) => setCompletionRecordId(recordId)}
         />
         {exportMessage ? <p className="export-feedback">{exportMessage}</p> : null}
       </Panel>
@@ -396,7 +422,7 @@ export default function PlanningOverviewPage() {
                     <td>
                       {linkedAudit ? (
                         <Link to={getAuditRecordHomePath(linkedAudit)} className="button button-secondary button-small">
-                          Open audit
+                          <ButtonLabel icon="open" label="Open audit" />
                         </Link>
                       ) : (
                         <span className="planning-subtle-text">Not linked</span>
@@ -404,30 +430,72 @@ export default function PlanningOverviewPage() {
                     </td>
                     <td>
                       <div className="planning-row-actions">
-                        <button type="button" className="button button-secondary button-small" onClick={() => setEditorState({ mode: 'edit', recordId: record.id })}>
-                          Edit
+                        <button
+                          type="button"
+                          className="button button-secondary button-small button-icon-only"
+                          onClick={() => setEditorState({ mode: 'edit', recordId: record.id })}
+                          aria-label={`Edit ${record.title}`}
+                          title="Edit"
+                        >
+                          <ButtonLabel icon="edit" label={`Edit ${record.title}`} hideLabel />
                         </button>
-                        <button type="button" className="button button-secondary button-small" onClick={() => setEditorState({ mode: 'edit', recordId: record.id, defaultStartDate: record.plannedStart })}>
-                          Reschedule
+                        <button
+                          type="button"
+                          className="button button-secondary button-small button-icon-only"
+                          onClick={() => setEditorState({ mode: 'edit', recordId: record.id, defaultStartDate: record.plannedStart })}
+                          aria-label={`Reschedule ${record.title}`}
+                          title="Reschedule"
+                        >
+                          <ButtonLabel icon="calendar" label={`Reschedule ${record.title}`} hideLabel />
                         </button>
-                        <button type="button" className="button button-secondary button-small" onClick={() => setCompletionRecordId(record.id)}>
-                          Complete
+                        <button
+                          type="button"
+                          className="button button-secondary button-small button-icon-only"
+                          onClick={() => setCompletionRecordId(record.id)}
+                          aria-label={`Mark ${record.title} completed`}
+                          title="Mark completed"
+                        >
+                          <ButtonLabel icon="complete" label={`Mark ${record.title} completed`} hideLabel />
                         </button>
-                        <button type="button" className="button button-secondary button-small" onClick={() => handleCancel(record.id)}>
-                          {record.status === 'Cancelled' ? 'Reopen' : 'Cancel'}
+                        <button
+                          type="button"
+                          className="button button-secondary button-small button-icon-only"
+                          onClick={() => handleCancel(record.id)}
+                          aria-label={`${record.status === 'Cancelled' ? 'Reopen' : 'Cancel'} ${record.title}`}
+                          title={record.status === 'Cancelled' ? 'Reopen' : 'Cancel'}
+                        >
+                          <ButtonLabel icon={record.status === 'Cancelled' ? 'reopen' : 'cancel'} label={`${record.status === 'Cancelled' ? 'Reopen' : 'Cancel'} ${record.title}`} hideLabel />
                         </button>
-                        <button type="button" className="button button-secondary button-small" onClick={() => handleDuplicate(record.id)}>
-                          Duplicate
+                        <button
+                          type="button"
+                          className="button button-secondary button-small button-icon-only"
+                          onClick={() => handleDuplicate(record.id)}
+                          aria-label={`Duplicate ${record.title}`}
+                          title="Duplicate"
+                        >
+                          <ButtonLabel icon="duplicate" label={`Duplicate ${record.title}`} hideLabel />
                         </button>
-                        <button type="button" className="button button-secondary button-small button-danger" onClick={() => handleDelete(record.id)}>
-                          Delete
+                        <button
+                          type="button"
+                          className="button button-secondary button-small button-danger button-icon-only"
+                          onClick={() => handleDelete(record.id)}
+                          aria-label={`Delete ${record.title}`}
+                          title="Delete"
+                        >
+                          <ButtonLabel icon="delete" label={`Delete ${record.title}`} hideLabel />
                         </button>
-                        <button type="button" className="button button-secondary button-small" onClick={() => setHistoryRecordId(record.id)}>
-                          History
+                        <button
+                          type="button"
+                          className="button button-secondary button-small button-icon-only"
+                          onClick={() => setHistoryRecordId(record.id)}
+                          aria-label={`Open history for ${record.title}`}
+                          title="History"
+                        >
+                          <ButtonLabel icon="history" label={`Open history for ${record.title}`} hideLabel />
                         </button>
                         {getPlanExecutionAuditType(record) && !record.linkedAuditId ? (
                           <button type="button" className="button button-primary button-small" onClick={() => handleCreateAudit(record.id)}>
-                            Create audit
+                            <ButtonLabel icon="add" label="Create audit" />
                           </button>
                         ) : null}
                       </div>

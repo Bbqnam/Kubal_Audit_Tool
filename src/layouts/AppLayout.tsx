@@ -8,8 +8,12 @@ export default function AppLayout() {
     <div className="app-shell">
       <Sidebar />
       <div className="content-shell">
-        <Topbar />
-        <ModuleSectionNav />
+        <div className="module-toolbar">
+          <ModuleSectionNav />
+          <div className="module-toolbar-right">
+            <Topbar />
+          </div>
+        </div>
         <main className="content-main">
           <Outlet />
         </main>

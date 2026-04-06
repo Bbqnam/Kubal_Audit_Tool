@@ -8,9 +8,9 @@ import type {
   Vda63QuestionBankItem,
   Vda63QuestionResponse,
   Vda63SummaryResult,
+  Vda65DefectClass,
   Vda65ChecklistItem,
   Vda65Results,
-  Vda65Severity,
 } from '../types/audit'
 import { getAuditTypeFamilyLabel, getAuditTypeLabel } from '../data/auditTypes'
 
@@ -18,7 +18,13 @@ export const chapterOrder: Vda63ChapterKey[] = ['P2', 'P3', 'P4', 'P5', 'P6', 'P
 
 export const scoreOptions = [0, 4, 6, 8, 10] as const
 
-export const severityOrder: Vda65Severity[] = ['Critical', 'High', 'Medium', 'Low']
+export const vda65DefectClassOrder: Vda65DefectClass[] = ['A', 'B', 'C']
+
+export const vda65DefectClassPoints: Record<Vda65DefectClass, number> = {
+  A: 100,
+  B: 50,
+  C: 10,
+}
 
 export function formatAuditType(auditType: AuditType) {
   if (auditType === 'template') {
@@ -246,41 +252,60 @@ export function getVda63AnsweredCount(
 
 export function calculateVda65Results(items: Vda65ChecklistItem[]): Vda65Results {
   const totalChecks = items.length
+  const reviewedCount = items.filter((item) => item.status !== 'Pending').length
   const nokItems = items.filter((item) => item.status === 'NOK')
   const nokCount = nokItems.length
   const okCount = items.filter((item) => item.status === 'OK').length
   const pendingCount = items.filter((item) => item.status === 'Pending').length
-
-  const defectOverview = nokItems.reduce<Record<string, number>>((overview, item) => {
-    overview[item.defectType] = (overview[item.defectType] ?? 0) + 1
-    return overview
-  }, {})
-
-  const severityOverview = items.reduce<Record<Vda65Severity, number>>(
+  const defectClassOverview = nokItems.reduce<Record<Vda65DefectClass, number>>(
     (overview, item) => {
-      overview[item.severity] += item.status === 'NOK' ? 1 : 0
+      overview[item.defectClass] += Math.max(1, item.defectCount || 0)
       return overview
     },
-    { Critical: 0, High: 0, Medium: 0, Low: 0 },
+    { A: 0, B: 0, C: 0 },
+  )
+  const totalDefects = vda65DefectClassOrder.reduce((sum, defectClass) => sum + defectClassOverview[defectClass], 0)
+  const totalScore = vda65DefectClassOrder.reduce(
+    (sum, defectClass) => sum + defectClassOverview[defectClass] * vda65DefectClassPoints[defectClass],
+    0,
   )
 
-  let resultSummary: Vda65Results['resultSummary']
+  let resultBand: Vda65Results['resultBand'] = null
 
-  if (nokCount === 0 && pendingCount === 0) {
-    resultSummary = 'Pass'
-  } else if (severityOverview.Critical > 0 || nokCount > Math.ceil(totalChecks * 0.25)) {
-    resultSummary = 'Fail'
+  if (reviewedCount > 0) {
+    if (totalScore <= 50) {
+      resultBand = 'Very Good (OK)'
+    } else if (totalScore <= 100) {
+      resultBand = 'Good (OK)'
+    } else if (totalScore <= 149) {
+      resultBand = 'Satisfactory (OK)'
+    } else {
+      resultBand = 'Not OK (Audit Failed)'
+    }
+  }
+
+  let auditDecision: Vda65Results['auditDecision']
+
+  if (reviewedCount === 0) {
+    auditDecision = 'Not started'
+  } else if (pendingCount > 0) {
+    auditDecision = 'In progress'
+  } else if ((resultBand ?? 'Not OK (Audit Failed)') === 'Not OK (Audit Failed)') {
+    auditDecision = 'Audit Failed'
   } else {
-    resultSummary = 'Conditional'
+    auditDecision = 'OK'
   }
 
   return {
     totalChecks,
+    reviewedCount,
     nokCount,
     okCount,
     pendingCount,
-    defectOverview,
-    severityOverview,
-    resultSummary,
+    totalDefects,
+    totalScore,
+    defectClassOverview,
+    resultBand,
+    auditDecision,
   }
 }

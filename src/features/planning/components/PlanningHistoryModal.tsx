@@ -1,4 +1,5 @@
 import { Modal, StatusBadge } from '../../../components/ui'
+import { ButtonLabel } from '../../../components/icons'
 import type { AuditPlanRecord } from '../../../types/planning'
 import { formatDateTime } from '../../../utils/dateUtils'
 
@@ -12,7 +13,7 @@ export default function PlanningHistoryModal({ record, onClose }: { record: Audi
       onClose={onClose}
       actions={
         <button type="button" className="button button-primary" onClick={onClose}>
-          Close
+          <ButtonLabel icon="close" label="Close" />
         </button>
       }
     >

@@ -1,23 +1,24 @@
-import type { CSSProperties } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { useState, type FocusEvent as ReactFocusEvent, type MouseEvent as ReactMouseEvent } from 'react'
 import { AuditTypeBadge, PageHeader, StatusBadge } from '../components/ui'
-import { getAuditRecordHomePath } from '../data/navigation'
+import { ButtonLabel } from '../components/icons'
+import { getAuditRecordHomePath, getPlanningCalendarPath } from '../data/navigation'
 import { getAuditTypeLabel } from '../features/shared/services/auditSummary'
 import { getAuditTypeFamilyLabel, getAuditWorkspaceKind } from '../data/auditTypes'
 import { useAuditLibrary } from '../features/shared/context/useAuditLibrary'
 import {
   getDerivedPlanStatus,
-  getOverduePlanningRecords,
   getPlanWindowLabel,
   getPlanningYears,
   getPlansForYear,
   getUpcomingPlanningRecords,
   groupPlansByMonth,
+  planningMonthLabels,
   summarizePlans,
 } from '../features/planning/services/planningUtils'
-import type { AuditRecord, AuditType } from '../types/audit'
+import type { ActionPlanStatus, AuditRecord, AuditType } from '../types/audit'
 import type { AuditPlanRecord } from '../types/planning'
-import { formatDate, formatDateTime } from '../utils/dateUtils'
+import { formatDate } from '../utils/dateUtils'
 
 type DashboardPlanStatus = 'Completed' | 'Planned' | 'Upcoming' | 'In progress' | 'Overdue'
 type DashboardTone = 'green' | 'blue' | 'yellow' | 'orange' | 'red' | 'grey'
@@ -66,7 +67,10 @@ function getPlanningLink(record: AuditPlanRecord, audits: AuditRecord[]) {
     }
   }
 
-  return '/planning/calendar'
+  return getPlanningCalendarPath({
+    year: record.year,
+    month: record.month,
+  })
 }
 
 function getStandardTone(standard: string) {
@@ -111,29 +115,65 @@ function getMonthDensityLevel(count: number, maxCount: number) {
   return '1'
 }
 
-function buildDonutStyle(segments: ChartSegment[]): CSSProperties {
-  const total = segments.reduce((sum, segment) => sum + segment.value, 0)
+function formatTimeOnly(value: string) {
+  return new Intl.DateTimeFormat('en-GB', {
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date(value))
+}
 
-  if (total === 0) {
+function getActionPreviewPriority(status: ActionPlanStatus) {
+  switch (status) {
+    case 'In progress':
+      return 0
+    case 'Open':
+      return 1
+    default:
+      return 2
+  }
+}
+
+function getPortfolioHoverDate(record: AuditPlanRecord, referenceDate = new Date()) {
+  const status = getDashboardPlanStatus(record, referenceDate)
+
+  if (status === 'Completed') {
     return {
-      background: 'conic-gradient(rgba(91, 109, 128, 0.16) 0deg 360deg)',
+      dateTime: record.actualCompletionDate ?? record.plannedEnd,
+      label: 'Completed',
+      value: formatDate(record.actualCompletionDate ?? record.plannedEnd),
     }
   }
 
-  let currentAngle = 0
-  const gradient = segments
-    .filter((segment) => segment.value > 0)
-    .map((segment) => {
-      const start = currentAngle
-      const sweep = (segment.value / total) * 360
-      currentAngle += sweep
-      return `${segment.color} ${start}deg ${currentAngle}deg`
-    })
-    .join(', ')
+  if (status === 'Overdue') {
+    return {
+      dateTime: record.plannedEnd,
+      label: 'Due',
+      value: formatDate(record.plannedEnd),
+    }
+  }
 
   return {
-    background: `conic-gradient(${gradient})`,
+    dateTime: record.plannedStart,
+    label: status === 'In progress' ? 'Started' : 'Starts',
+    value: formatDate(record.plannedStart),
   }
+}
+
+function DashboardMetaPill({
+  label,
+  detail,
+  tone = 'sand',
+}: {
+  label?: string
+  detail: string
+  tone?: 'sand' | 'slate' | 'red'
+}) {
+  return (
+    <span className={`dashboard-meta-pill dashboard-meta-pill-${tone}`}>
+      {label ? <small>{label}</small> : null}
+      <strong>{detail}</strong>
+    </span>
+  )
 }
 
 function DashboardMetric({
@@ -141,14 +181,42 @@ function DashboardMetric({
   value,
   tone,
   helper,
+  active = false,
+  onHoverStart,
+  onHoverMove,
+  onHoverEnd,
 }: {
   label: string
   value: string | number
   tone: DashboardTone
   helper: string
+  active?: boolean
+  onHoverStart?: (event: ReactMouseEvent<HTMLButtonElement> | ReactFocusEvent<HTMLButtonElement>) => void
+  onHoverMove?: (event: ReactMouseEvent<HTMLButtonElement>) => void
+  onHoverEnd?: () => void
 }) {
+  const className = `dashboard-kpi dashboard-kpi-${tone} ${active ? 'dashboard-kpi-active' : ''}`.trim()
+
+  if (onHoverStart || onHoverMove || onHoverEnd) {
+    return (
+      <button
+        type="button"
+        className={className}
+        onMouseEnter={(event) => onHoverStart?.(event)}
+        onMouseMove={(event) => onHoverMove?.(event)}
+        onMouseLeave={() => onHoverEnd?.()}
+        onFocus={(event) => onHoverStart?.(event)}
+        onBlur={() => onHoverEnd?.()}
+      >
+        <span>{label}</span>
+        <strong>{value}</strong>
+        <small>{helper}</small>
+      </button>
+    )
+  }
+
   return (
-    <div className={`dashboard-kpi dashboard-kpi-${tone}`}>
+    <div className={className}>
       <span>{label}</span>
       <strong>{value}</strong>
       <small>{helper}</small>
@@ -156,30 +224,43 @@ function DashboardMetric({
   )
 }
 
+function DashboardHelpButton({ text }: { text: string }) {
+  return (
+    <span className="dashboard-help-button" title={text} aria-label={text} tabIndex={0}>
+      ?
+    </span>
+  )
+}
+
 export default function Dashboard() {
   const navigate = useNavigate()
   const { audits, planningRecords, createAudit } = useAuditLibrary()
   const planningYears = getPlanningYears(planningRecords)
+  const currentDate = new Date()
   const fallbackYear = new Date().getFullYear()
   const currentYear = planningYears.length === 0
     ? fallbackYear
     : planningYears.includes(fallbackYear)
       ? fallbackYear
       : planningYears[planningYears.length - 1]
-  const currentYearPlans = getPlansForYear(planningRecords, currentYear)
-  const currentYearSummary = summarizePlans(currentYearPlans)
-  const completionRate = currentYearSummary.total === 0 ? 0 : Math.round((currentYearSummary.completed / currentYearSummary.total) * 100)
+  
+  const [portfolioMonth, setPortfolioMonth] = useState<number | 'all'>('all')
+  const [portfolioHoverStatus, setPortfolioHoverStatus] = useState<string | null>(null)
+  const [portfolioHoverCardPosition, setPortfolioHoverCardPosition] = useState<{ left: number; top: number } | null>(null)
+  
+  const portfolioYearPlans = getPlansForYear(planningRecords, currentYear)
+  const portfolioFilteredPlans = portfolioMonth === 'all'
+    ? portfolioYearPlans
+    : portfolioYearPlans.filter(plan => plan.month === portfolioMonth)
+  const portfolioSummary = summarizePlans(portfolioFilteredPlans)
+  const portfolioCompletionRate = portfolioSummary.total === 0 ? 0 : Math.round((portfolioSummary.completed / portfolioSummary.total) * 100)
   const recentAudits = [...audits].sort((left, right) => right.updatedAt.localeCompare(left.updatedAt)).slice(0, 4)
-  const activeAudits = audits.filter((audit) => audit.status !== 'Completed')
-  const notEvaluatedAudits = audits.filter((audit) => audit.summary.progressPercent === 0)
-  const next30Plans = getUpcomingPlanningRecords(planningRecords, 30)
+  const portfolioPlannedCount = portfolioFilteredPlans.filter((record) => getDashboardPlanStatus(record) === 'Planned').length
+  const portfolioUpcomingCount = portfolioFilteredPlans.filter((record) => getDashboardPlanStatus(record) === 'Upcoming').length
+  const portfolioOverdueCount = portfolioFilteredPlans.filter((record) => getDashboardPlanStatus(record) === 'Overdue').length
   const upcomingPlans = getUpcomingPlanningRecords(planningRecords, 90).slice(0, 7)
-  const overduePlans = getOverduePlanningRecords(planningRecords).slice(0, 5)
   const monthGroups = groupPlansByMonth(planningRecords, currentYear)
   const maxMonthLoad = Math.max(1, ...monthGroups.map((month) => month.records.length))
-  const plannedCount = currentYearPlans.filter((record) => getDashboardPlanStatus(record) === 'Planned').length
-  const upcomingCount = currentYearPlans.filter((record) => getDashboardPlanStatus(record) === 'Upcoming').length
-  const overdueCount = currentYearPlans.filter((record) => getDashboardPlanStatus(record) === 'Overdue').length
 
   const openActionRecords = audits
     .flatMap((audit) =>
@@ -196,16 +277,29 @@ export default function Dashboard() {
         return left.overdue ? -1 : 1
       }
 
+      const statusPriority = getActionPreviewPriority(left.action.status) - getActionPreviewPriority(right.action.status)
+
+      if (statusPriority !== 0) {
+        return statusPriority
+      }
+
       if (left.action.dueDate && right.action.dueDate) {
         return left.action.dueDate.localeCompare(right.action.dueDate)
       }
 
-      return left.audit.updatedAt.localeCompare(right.audit.updatedAt)
-    })
+      if (left.action.dueDate || right.action.dueDate) {
+        return left.action.dueDate ? -1 : 1
+      }
 
-  const overdueActionCount = openActionRecords.filter((item) => item.overdue).length
-  const standardsBreakdown = Object.entries(
-    currentYearPlans.reduce<Record<string, number>>((summary, record) => {
+      return right.audit.updatedAt.localeCompare(left.audit.updatedAt)
+    })
+  const overdueActionCount = openActionRecords.filter(({ overdue }) => overdue).length
+  const inProgressActionCount = openActionRecords.filter(({ overdue, action }) => !overdue && action.status === 'In progress').length
+  const openActionCount = openActionRecords.filter(({ overdue, action }) => !overdue && action.status === 'Open').length
+  const actionSummary = `${overdueActionCount} overdue · ${inProgressActionCount} in progress · ${openActionCount} open`
+
+  const portfolioStandardsBreakdown = Object.entries(
+    portfolioFilteredPlans.reduce<Record<string, number>>((summary, record) => {
       summary[record.standard] = (summary[record.standard] ?? 0) + 1
       return summary
     }, {}),
@@ -213,49 +307,22 @@ export default function Dashboard() {
     .sort((left, right) => right[1] - left[1])
     .slice(0, 6)
 
-  const standardBreakdownDetails = standardsBreakdown.map(([standard, count]) => {
-    const records = currentYearPlans.filter((record) => record.standard === standard)
+  const portfolioStandardBreakdownDetails = portfolioStandardsBreakdown.map(([standard, count]) => {
+    const records = portfolioFilteredPlans.filter((record) => record.standard === standard)
 
     return {
       standard,
       count,
       records,
-      preview: records.slice(0, 4),
-      remaining: Math.max(0, records.length - 4),
     }
   })
 
-  const splitBreakdown = Object.entries(
-    currentYearPlans.reduce<Record<string, number>>((summary, record) => {
-      summary[record.internalExternal] = (summary[record.internalExternal] ?? 0) + 1
-      return summary
-    }, {}),
-  ).sort((left, right) => right[1] - left[1])
-
-  const splitBreakdownDetails = splitBreakdown.map(([label, count]) => {
-    const records = currentYearPlans.filter((record) => record.internalExternal === label)
-
-    return {
-      label,
-      count,
-      records,
-      preview: records.slice(0, 4),
-      remaining: Math.max(0, records.length - 4),
-    }
-  })
-
-  const statusSegments: ChartSegment[] = [
-    { label: 'Completed', value: currentYearSummary.completed, color: '#35a56d' },
-    { label: 'In progress', value: currentYearSummary.inProgress, color: '#e58d2f' },
-    { label: 'Upcoming', value: upcomingCount, color: '#d2a72a' },
-    { label: 'Planned', value: plannedCount, color: '#3e78d5' },
-    { label: 'Overdue', value: overdueCount, color: '#d34d43' },
-  ]
-
-  const deliverySegments: ChartSegment[] = [
-    { label: 'Internal', value: splitBreakdown.filter(([label]) => label === 'Internal').reduce((sum, [, value]) => sum + value, 0), color: '#2d8a68' },
-    { label: 'External', value: splitBreakdown.filter(([label]) => label.includes('External') || label.includes('third-party')).reduce((sum, [, value]) => sum + value, 0), color: '#3e78d5' },
-    { label: 'Supplier / follow-up', value: splitBreakdown.filter(([label]) => label.includes('Supplier') || label.includes('Follow-up') || label.includes('Special')).reduce((sum, [, value]) => sum + value, 0), color: '#c27e2f' },
+  const portfolioStatusSegments: ChartSegment[] = [
+    { label: 'Completed', value: portfolioSummary.completed, color: '#35a56d' },
+    { label: 'In progress', value: portfolioSummary.inProgress, color: '#e58d2f' },
+    { label: 'Upcoming', value: portfolioUpcomingCount, color: '#d2a72a' },
+    { label: 'Planned', value: portfolioPlannedCount, color: '#3e78d5' },
+    { label: 'Overdue', value: portfolioOverdueCount, color: '#d34d43' },
   ]
 
   function handleCreateAudit(auditType: AuditType) {
@@ -263,122 +330,347 @@ export default function Dashboard() {
     navigate(getAuditRecordHomePath(newAudit))
   }
 
-  const featuredStandards = standardsBreakdown.slice(0, 4)
+  const pulseFeaturedStandards = portfolioStandardBreakdownDetails.slice(0, 4)
+  const currentCalendarPath = getPlanningCalendarPath({
+    year: currentYear,
+    month: currentDate.getMonth() + 1,
+  })
+  const hoveredStatusRecords = portfolioHoverStatus
+    ? portfolioFilteredPlans.filter((record) => getDashboardPlanStatus(record) === portfolioHoverStatus)
+    : []
+  const hoveredStatusRecordPreview = [...hoveredStatusRecords]
+    .sort((left, right) => left.plannedStart.localeCompare(right.plannedStart) || left.title.localeCompare(right.title))
+    .slice(0, 6)
+  const portfolioPeriodLabel = portfolioMonth === 'all'
+    ? `${currentYear}`
+    : `${planningMonthLabels[portfolioMonth - 1]} ${currentYear}`
+  const portfolioOverviewLabel = `${currentYear} Audit Review`
+  const portfolioOverviewTitle = portfolioMonth === 'all'
+    ? ''
+    : `${planningMonthLabels[portfolioMonth - 1]} overview`
+  const activeStatusCount = portfolioHoverStatus
+    ? portfolioStatusSegments.find((segment) => segment.label === portfolioHoverStatus)?.value ?? 0
+    : 0
+
+  function getPortfolioHoverCardPosition(clientX: number, clientY: number) {
+    if (typeof window === 'undefined') {
+      return { left: clientX, top: clientY }
+    }
+
+    const cardWidth = 340
+    const cardHeight = 280
+    const pointerOffset = 18
+    const viewportPadding = 16
+    let left = clientX + pointerOffset
+    let top = clientY + pointerOffset
+
+    if (left + cardWidth > window.innerWidth - viewportPadding) {
+      left = Math.max(viewportPadding, clientX - cardWidth - pointerOffset)
+    }
+
+    if (top + cardHeight > window.innerHeight - viewportPadding) {
+      top = Math.max(viewportPadding, window.innerHeight - cardHeight - viewportPadding)
+    }
+
+    return { left, top }
+  }
+
+  function showPortfolioHoverAtPointer(status: string, clientX: number, clientY: number) {
+    setPortfolioHoverStatus(status)
+    setPortfolioHoverCardPosition(getPortfolioHoverCardPosition(clientX, clientY))
+  }
+
+  function showPortfolioHoverAtElement(status: string, element: HTMLElement) {
+    const rect = element.getBoundingClientRect()
+    showPortfolioHoverAtPointer(status, rect.right, rect.top + rect.height / 2)
+  }
+
+  function clearPortfolioHover() {
+    setPortfolioHoverStatus(null)
+    setPortfolioHoverCardPosition(null)
+  }
 
   return (
     <div className="dashboard-page dashboard-control-center">
       <PageHeader
-        eyebrow="Audit management platform"
-        title="Audit command center"
-        subtitle="See overdue work, near-term load, yearly coverage, and execution momentum at a glance."
+        eyebrow="Dashboard"
+        title="Audit Dashboard"
         actions={
           <div className="section-header-actions">
-            <Link to="/planning" className="button button-secondary">Planning</Link>
-            <Link to="/audits" className="button button-primary">Audit library</Link>
+            <DashboardHelpButton text="Balanced view of planning pressure, overdue risk, and live execution across the audit programme." />
+            <div className="dashboard-header-launch">
+              <button type="button" className="button button-primary" onClick={() => handleCreateAudit('template')}>
+                <ButtonLabel icon="add" label="New Audit" />
+              </button>
+              <Link to="/audits" className="button button-secondary">
+                <ButtonLabel icon="library" label="Audit Library" />
+              </Link>
+              <Link to={currentCalendarPath} className="button button-secondary">
+                <ButtonLabel icon="calendar" label="Audit Planning" />
+              </Link>
+            </div>
           </div>
         }
       />
 
-      <section className="dashboard-pulse">
-        <div className="dashboard-pulse-main">
-          <div className="dashboard-pulse-head">
-            <div>
-              <span className="dashboard-pulse-label">Programme pulse</span>
-              <h2>{currentYear} audit overview</h2>
+      <div className="dashboard-top-row">
+        <section className="dashboard-pulse">
+          <div className="dashboard-pulse-main">
+            <div className="dashboard-pulse-head">
+              <div className="dashboard-pulse-heading">
+                <span className="dashboard-pulse-label">{portfolioOverviewLabel}</span>
+                <div className="dashboard-pulse-heading-row">
+                  {portfolioOverviewTitle ? <h2>{portfolioOverviewTitle}</h2> : null}
+                  <div className="dashboard-pulse-inline-badges" aria-label="Most common standards in this view">
+                    {pulseFeaturedStandards.map(({ standard, count }) => (
+                      <span key={standard} className={`dashboard-standard-chip dashboard-standard-chip-inline dashboard-standard-${getStandardTone(standard)}`}>
+                        <span>{standard}</span>
+                        <strong>{count}</strong>
+                      </span>
+                    ))}
+                    {!pulseFeaturedStandards.length ? <span className="dashboard-empty-note">No audits in this slice.</span> : null}
+                  </div>
+                </div>
+              </div>
+              <div className="dashboard-pulse-toolbar">
+                <div className="dashboard-pulse-filters">
+                  <div className="portfolio-slicer-group dashboard-pulse-month-group">
+                    <span className="portfolio-slicer-label">Month</span>
+                    <div className="portfolio-slicer-pills">
+                      <button
+                        type="button"
+                        className={`portfolio-slicer-pill ${portfolioMonth === 'all' ? 'portfolio-slicer-pill-active' : ''}`}
+                        onClick={() => {
+                          setPortfolioMonth('all')
+                          setPortfolioHoverStatus(null)
+                        }}
+                      >
+                        All
+                      </button>
+                      {planningMonthLabels.map((month, idx) => (
+                      <button
+                        key={month}
+                        type="button"
+                        className={`portfolio-slicer-pill ${portfolioMonth === idx + 1 ? 'portfolio-slicer-pill-active' : ''}`}
+                          onClick={() => {
+                            setPortfolioMonth(idx + 1)
+                            setPortfolioHoverStatus(null)
+                          }}
+                        >
+                          {month.slice(0, 3)}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
-            <div className="dashboard-pulse-badges">
-              {featuredStandards.map(([standard]) => (
-                <span key={standard} className={`dashboard-standard-chip dashboard-standard-${getStandardTone(standard)}`}>
-                  {standard}
-                </span>
-              ))}
-            </div>
-          </div>
 
           <div className="dashboard-pulse-summary">
-            <div>
-              <strong>{currentYearSummary.total}</strong>
-              <span>planned audits</span>
+            <div className="dashboard-pulse-summary-card dashboard-pulse-summary-total">
+              <strong>{portfolioSummary.total}</strong>
+              <span>audits in scope</span>
             </div>
-            <div>
-              <strong>{completionRate}%</strong>
-              <span>completed on plan</span>
-            </div>
-            <div>
-              <strong>{next30Plans.length}</strong>
-              <span>starting in 30 days</span>
-            </div>
-            <div>
-              <strong>{overdueCount}</strong>
-              <span>overdue windows</span>
+            <div className="dashboard-pulse-summary-card dashboard-pulse-summary-rate">
+              <strong>{portfolioCompletionRate}%</strong>
+              <span>completion rate</span>
             </div>
           </div>
 
-          <div className="dashboard-segment-bar" aria-label="Year programme status">
-            {statusSegments.map((segment) => {
-              const total = statusSegments.reduce((sum, item) => sum + item.value, 0) || 1
+            <div className="dashboard-pulse-status-zone">
+              <div className="dashboard-segment-bar" aria-label={`${portfolioPeriodLabel} programme status`}>
+                {portfolioStatusSegments.filter((segment) => segment.value > 0).map((segment) => {
+                  const total = portfolioStatusSegments.reduce((sum, item) => sum + item.value, 0) || 1
+                  return (
+                    <button
+                      key={segment.label}
+                      type="button"
+                      className={`dashboard-segment dashboard-segment-${segment.label.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`}
+                      style={{ width: `${(segment.value / total) * 100}%` }}
+                      title={`${segment.label}: ${segment.value}`}
+                      aria-label={`${segment.label}: ${segment.value}`}
+                      onMouseEnter={(event) => showPortfolioHoverAtPointer(segment.label, event.clientX, event.clientY)}
+                      onMouseMove={(event) => showPortfolioHoverAtPointer(segment.label, event.clientX, event.clientY)}
+                      onMouseLeave={() => clearPortfolioHover()}
+                      onFocus={(event) => showPortfolioHoverAtElement(segment.label, event.currentTarget)}
+                      onBlur={() => clearPortfolioHover()}
+                    />
+                  )
+                })}
+              </div>
+
+              <div className="dashboard-kpi-grid">
+                <DashboardMetric
+                label="Completed"
+                value={portfolioSummary.completed}
+                tone="green"
+                helper="Closed"
+                active={portfolioHoverStatus === 'Completed'}
+                onHoverStart={(event) => {
+                  if ('clientX' in event) {
+                    showPortfolioHoverAtPointer('Completed', event.clientX, event.clientY)
+                  } else {
+                    showPortfolioHoverAtElement('Completed', event.currentTarget)
+                  }
+                }}
+                onHoverMove={(event) => showPortfolioHoverAtPointer('Completed', event.clientX, event.clientY)}
+                onHoverEnd={() => clearPortfolioHover()}
+              />
+              <DashboardMetric
+                label="Planned"
+                value={portfolioPlannedCount}
+                tone="blue"
+                helper="Later in year"
+                active={portfolioHoverStatus === 'Planned'}
+                onHoverStart={(event) => {
+                  if ('clientX' in event) {
+                    showPortfolioHoverAtPointer('Planned', event.clientX, event.clientY)
+                  } else {
+                    showPortfolioHoverAtElement('Planned', event.currentTarget)
+                  }
+                }}
+                onHoverMove={(event) => showPortfolioHoverAtPointer('Planned', event.clientX, event.clientY)}
+                onHoverEnd={() => clearPortfolioHover()}
+              />
+              <DashboardMetric
+                label="Upcoming"
+                value={portfolioUpcomingCount}
+                tone="yellow"
+                helper="Next 30 days"
+                active={portfolioHoverStatus === 'Upcoming'}
+                onHoverStart={(event) => {
+                  if ('clientX' in event) {
+                    showPortfolioHoverAtPointer('Upcoming', event.clientX, event.clientY)
+                  } else {
+                    showPortfolioHoverAtElement('Upcoming', event.currentTarget)
+                  }
+                }}
+                onHoverMove={(event) => showPortfolioHoverAtPointer('Upcoming', event.clientX, event.clientY)}
+                onHoverEnd={() => clearPortfolioHover()}
+              />
+              <DashboardMetric
+                label="In progress"
+                value={portfolioSummary.inProgress}
+                tone="orange"
+                helper="Underway"
+                active={portfolioHoverStatus === 'In progress'}
+                onHoverStart={(event) => {
+                  if ('clientX' in event) {
+                    showPortfolioHoverAtPointer('In progress', event.clientX, event.clientY)
+                  } else {
+                    showPortfolioHoverAtElement('In progress', event.currentTarget)
+                  }
+                }}
+                onHoverMove={(event) => showPortfolioHoverAtPointer('In progress', event.clientX, event.clientY)}
+                onHoverEnd={() => clearPortfolioHover()}
+              />
+              <DashboardMetric
+                label="Overdue"
+                value={portfolioOverdueCount}
+                tone="red"
+                helper="Needs action"
+                active={portfolioHoverStatus === 'Overdue'}
+                onHoverStart={(event) => {
+                  if ('clientX' in event) {
+                    showPortfolioHoverAtPointer('Overdue', event.clientX, event.clientY)
+                  } else {
+                    showPortfolioHoverAtElement('Overdue', event.currentTarget)
+                  }
+                }}
+                onHoverMove={(event) => showPortfolioHoverAtPointer('Overdue', event.clientX, event.clientY)}
+                onHoverEnd={() => clearPortfolioHover()}
+              />
+            </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="dashboard-widget dashboard-widget-danger dashboard-priority-widget">
+          <div className="dashboard-widget-header">
+            <div className="dashboard-priority-heading">
+              <span className="dashboard-widget-kicker">Action follow-up</span>
+            </div>
+            <div className="dashboard-priority-meta">
+              <span className="dashboard-priority-summary-inline">{actionSummary}</span>
+              <Link to="/audits" className="button button-secondary button-small">
+                <ButtonLabel icon="open" label="Open actions" />
+              </Link>
+            </div>
+          </div>
+          <div className="dashboard-priority-scroll">
+            <div className="dashboard-action-list dashboard-action-list-compact">
+              {openActionRecords.length ? openActionRecords.map(({ audit, action, overdue }) => (
+                <Link key={action.id} to={getActionPlanPath(audit)} className={`dashboard-action-card dashboard-action-card-compact ${overdue ? 'dashboard-action-overdue' : ''}`}>
+                  <div className="dashboard-action-topline">
+                    <StatusBadge value={overdue ? 'Overdue' : action.status} />
+                    {action.dueDate ? <DashboardMetaPill detail={formatDate(action.dueDate)} tone={overdue ? 'red' : 'sand'} /> : <DashboardMetaPill detail="No due date" tone="slate" />}
+                  </div>
+                  <strong className="dashboard-action-finding">{action.finding}</strong>
+                  <div className="dashboard-action-meta dashboard-action-meta-compact">
+                    <p>{action.section} · {action.owner || 'Owner TBD'}</p>
+                    <span className={`dashboard-standard-chip dashboard-standard-${getStandardTone(audit.standard || getAuditTypeLabel(audit.auditType))}`}>
+                      {audit.standard || getAuditTypeLabel(audit.auditType)}
+                    </span>
+                  </div>
+                </Link>
+              )) : (
+                <div className="dashboard-action-empty">
+                  <strong>No open actions</strong>
+                  <p>All follow-up items are currently closed.</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </section>
+      </div>
+
+      {portfolioHoverStatus && hoveredStatusRecords.length && portfolioHoverCardPosition ? (
+        <div
+          className="portfolio-hover-card portfolio-hover-card-floating portfolio-hover-card-active"
+          aria-live="polite"
+          style={{ left: `${portfolioHoverCardPosition.left}px`, top: `${portfolioHoverCardPosition.top}px` }}
+        >
+          <div className="portfolio-hover-header">
+            <span className="portfolio-hover-title">{portfolioHoverStatus}</span>
+            <strong>{activeStatusCount}</strong>
+          </div>
+          <div className="portfolio-hover-list">
+            {hoveredStatusRecordPreview.map((record) => {
+              const dateMeta = getPortfolioHoverDate(record, currentDate)
+
               return (
-                <span
-                  key={segment.label}
-                  className={`dashboard-segment dashboard-segment-${segment.label.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`}
-                  style={{ width: `${(segment.value / total) * 100}%` }}
-                  title={`${segment.label}: ${segment.value}`}
-                />
+                <div key={record.id} className="portfolio-hover-item">
+                  <strong>{record.standard}</strong>
+                  <span>{record.title}</span>
+                  <time className="portfolio-hover-date" dateTime={dateMeta.dateTime}>
+                    {dateMeta.label} · {dateMeta.value}
+                  </time>
+                </div>
               )
             })}
-          </div>
-
-          <div className="dashboard-kpi-grid">
-            <DashboardMetric label="Completed" value={currentYearSummary.completed} tone="green" helper="Green delivery" />
-            <DashboardMetric label="Planned" value={plannedCount} tone="blue" helper="Later in programme" />
-            <DashboardMetric label="Upcoming" value={upcomingCount} tone="yellow" helper="Next 30 days" />
-            <DashboardMetric label="In progress" value={currentYearSummary.inProgress + activeAudits.length} tone="orange" helper="Planning plus execution" />
-            <DashboardMetric label="Overdue" value={overdueCount + overdueActionCount} tone="red" helper="Plans or actions behind" />
-            <DashboardMetric label="Not evaluated" value={notEvaluatedAudits.length} tone="grey" helper="Execution not started" />
+            {hoveredStatusRecords.length > hoveredStatusRecordPreview.length ? (
+              <span className="portfolio-hover-more">+{hoveredStatusRecords.length - hoveredStatusRecordPreview.length} more in this view</span>
+            ) : null}
           </div>
         </div>
-
-        <div className="dashboard-pulse-side">
-          <Link to="/planning/calendar" className="dashboard-alert-card dashboard-alert-danger">
-            <span className="dashboard-alert-kicker">Needs attention</span>
-            <strong>{overduePlans.length || overdueActionCount ? `${overduePlans.length + overdueActionCount} overdue items` : 'No overdue items'}</strong>
-            <p>
-              {overduePlans.length || overdueActionCount
-                ? 'Jump into the planning calendar and action follow-up before the schedule drifts further.'
-                : 'Planning and actions are currently on time.'}
-            </p>
-          </Link>
-
-          <div className="dashboard-quick-panel">
-            <span className="dashboard-alert-kicker">Quick launch</span>
-            <div className="dashboard-quick-actions">
-              <button type="button" className="button button-primary" onClick={() => handleCreateAudit('template')}>
-                New audit
-              </button>
-              <Link to="/audits" className="button button-secondary">Open library</Link>
-              <Link to="/planning" className="button button-secondary">Planning board</Link>
-              <Link to="/planning/reports" className="button button-secondary">Reports</Link>
-            </div>
-          </div>
-        </div>
-      </section>
+      ) : null}
 
       <div className="dashboard-main-grid">
-        <section className="dashboard-widget dashboard-widget-calendar">
+        <section className="dashboard-widget dashboard-widget-calendar" aria-label="Audit density">
           <div className="dashboard-widget-header">
-            <div>
-              <span className="dashboard-widget-kicker">Year heatmap</span>
-              <h2>{currentYear} audit density</h2>
-            </div>
-            <Link to="/planning/calendar" className="button button-secondary button-small">Open calendar</Link>
+            <div aria-hidden="true" />
+            <Link to={currentCalendarPath} className="button button-secondary button-small">
+              <ButtonLabel icon="calendar" label="Open calendar" />
+            </Link>
           </div>
           <div className="dashboard-month-grid">
             {monthGroups.map((month) => {
               const monthStandards = [...new Set(month.records.map((record) => record.standard))].slice(0, 2)
+
               return (
                 <Link
                   key={month.month}
-                  to="/planning/calendar"
+                  to={getPlanningCalendarPath({ year: currentYear, month: month.month })}
                   className={`dashboard-month-card dashboard-month-density-${getMonthDensityLevel(month.records.length, maxMonthLoad)}`}
                 >
                   <div className="dashboard-month-head">
@@ -402,13 +694,12 @@ export default function Dashboard() {
           </div>
         </section>
 
-        <section className="dashboard-widget dashboard-widget-timeline">
+        <section className="dashboard-widget dashboard-widget-timeline" aria-label="Upcoming timeline">
           <div className="dashboard-widget-header">
-            <div>
-              <span className="dashboard-widget-kicker">Next 90 days</span>
-              <h2>Upcoming timeline</h2>
-            </div>
-            <Link to="/planning" className="button button-secondary button-small">Planning board</Link>
+            <div aria-hidden="true" />
+            <Link to="/planning" className="button button-secondary button-small">
+              <ButtonLabel icon="open" label="Planning board" />
+            </Link>
           </div>
           <div className="dashboard-timeline-list">
             {upcomingPlans.map((record) => (
@@ -433,179 +724,15 @@ export default function Dashboard() {
       </div>
 
       <div className="dashboard-secondary-grid">
-        <section className="dashboard-widget dashboard-widget-danger">
-          <div className="dashboard-widget-header">
-            <div>
-              <span className="dashboard-widget-kicker">Escalate now</span>
-              <h2>Overdue spotlight</h2>
-            </div>
-            <Link to="/planning/calendar" className="button button-secondary button-small">Resolve overdue</Link>
-          </div>
-          <div className="dashboard-alert-list">
-            {overduePlans.length ? overduePlans.map((record) => (
-              <Link key={record.id} to={getPlanningLink(record, audits)} className="dashboard-alert-item">
-                <div>
-                  <strong>{record.title}</strong>
-                  <p>{record.owner} · planned end {formatDate(record.plannedEnd)}</p>
-                </div>
-                <div className="dashboard-alert-meta">
-                  <StatusBadge value="Overdue" />
-                  <span>{record.site}</span>
-                </div>
-              </Link>
-            )) : (
-              <div className="dashboard-alert-empty">
-                <strong>Nothing overdue</strong>
-                <p>The active planning horizon is currently under control.</p>
-              </div>
-            )}
-          </div>
-        </section>
-
-        <section className="dashboard-widget dashboard-widget-chart">
-          <div className="dashboard-widget-header">
-            <div>
-              <span className="dashboard-widget-kicker">Portfolio mix</span>
-              <h2>Standards and delivery split</h2>
-            </div>
-            <Link to="/planning/reports" className="button button-secondary button-small">Open reports</Link>
-          </div>
-
-          <div className="dashboard-chart-grid">
-            <div className="dashboard-donut-card">
-              <div className="dashboard-donut" style={buildDonutStyle(statusSegments)}>
-                <div className="dashboard-donut-center">
-                  <strong>{currentYearSummary.total}</strong>
-                  <span>planned</span>
-                </div>
-              </div>
-              <div className="dashboard-chart-legend">
-                {statusSegments.map((segment) => (
-                  <div key={segment.label} className="dashboard-legend-row">
-                    <span className="dashboard-legend-dot" style={{ background: segment.color }} />
-                    <span>{segment.label}</span>
-                    <strong>{segment.value}</strong>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="dashboard-bar-list">
-              <div className="dashboard-bar-group">
-                <span className="dashboard-bar-title">Audits by standard</span>
-                {standardBreakdownDetails.map(({ standard, count, preview, remaining }) => {
-                  const maxValue = Math.max(1, standardBreakdownDetails[0]?.count ?? 1)
-                  return (
-                    <div key={standard} className="dashboard-bar-row dashboard-bar-row-detail">
-                      <div className="dashboard-bar-labels">
-                        <span className={`dashboard-standard-chip dashboard-standard-${getStandardTone(standard)}`}>{standard}</span>
-                        <strong>{count}</strong>
-                      </div>
-                      <div className="dashboard-bar-track">
-                        <span className={`dashboard-bar-fill dashboard-standard-fill-${getStandardTone(standard)}`} style={{ width: `${(count / maxValue) * 100}%` }} />
-                      </div>
-                      <div className="dashboard-bar-hover-card">
-                        <span className="dashboard-bar-hover-title">{standard} audits</span>
-                        <div className="dashboard-bar-hover-list">
-                          {preview.map((record) => (
-                            <div key={record.id} className="dashboard-bar-hover-item">
-                              <strong>{record.auditType}</strong>
-                              <span>{record.title}</span>
-                            </div>
-                          ))}
-                          {remaining > 0 ? <span className="dashboard-bar-hover-more">+{remaining} more planned audits</span> : null}
-                        </div>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-
-              <div className="dashboard-bar-group">
-                <span className="dashboard-bar-title">Internal vs external</span>
-                {splitBreakdownDetails.map(({ label, count, preview, remaining }) => {
-                  const maxValue = Math.max(1, splitBreakdownDetails[0]?.count ?? 1)
-                  return (
-                    <div key={label} className="dashboard-bar-row dashboard-bar-row-detail">
-                      <div className="dashboard-bar-labels">
-                        <span>{label}</span>
-                        <strong>{count}</strong>
-                      </div>
-                      <div className="dashboard-bar-track">
-                        <span className="dashboard-bar-fill dashboard-bar-fill-slate" style={{ width: `${(count / maxValue) * 100}%` }} />
-                      </div>
-                      <div className="dashboard-bar-hover-card">
-                        <span className="dashboard-bar-hover-title">{label} audits</span>
-                        <div className="dashboard-bar-hover-list">
-                          {preview.map((record) => (
-                            <div key={record.id} className="dashboard-bar-hover-item">
-                              <strong>{record.standard}</strong>
-                              <span>{record.auditType} · {record.title}</span>
-                            </div>
-                          ))}
-                          {remaining > 0 ? <span className="dashboard-bar-hover-more">+{remaining} more planned audits</span> : null}
-                        </div>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-
-              <div className="dashboard-bar-group">
-                <span className="dashboard-bar-title">Programme delivery</span>
-                <div className="dashboard-stacked-track">
-                  {deliverySegments.map((segment) => {
-                    const total = deliverySegments.reduce((sum, item) => sum + item.value, 0) || 1
-                    return (
-                      <span
-                        key={segment.label}
-                        className="dashboard-stacked-segment"
-                        style={{ width: `${(segment.value / total) * 100}%`, background: segment.color }}
-                        title={`${segment.label}: ${segment.value}`}
-                      />
-                    )
-                  })}
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-      </div>
-
-      <div className="dashboard-secondary-grid">
-        <section className="dashboard-widget dashboard-widget-actions">
-          <div className="dashboard-widget-header">
-            <div>
-              <span className="dashboard-widget-kicker">Action follow-up</span>
-              <h2>Open actions</h2>
-            </div>
-            <span className="dashboard-widget-stat">{openActionRecords.length} open</span>
-          </div>
-          <div className="dashboard-action-list">
-            {openActionRecords.slice(0, 6).map(({ audit, action, overdue }) => (
-              <Link key={action.id} to={getActionPlanPath(audit)} className={`dashboard-action-card ${overdue ? 'dashboard-action-overdue' : ''}`}>
-                <div className="dashboard-action-topline">
-                  <StatusBadge value={overdue ? 'Overdue' : action.status} />
-                  <span>{audit.title}</span>
-                </div>
-                <strong>{action.finding}</strong>
-                <p>{action.section} · {action.owner || 'Owner TBD'}</p>
-                <div className="dashboard-action-meta">
-                  <span>{action.dueDate ? `Due ${formatDate(action.dueDate)}` : 'No due date'}</span>
-                  <span>{audit.standard || getAuditTypeLabel(audit.auditType)}</span>
-                </div>
-              </Link>
-            ))}
-          </div>
-        </section>
-
         <section className="dashboard-widget dashboard-widget-recent">
           <div className="dashboard-widget-header">
             <div>
               <span className="dashboard-widget-kicker">Execution</span>
               <h2>Recent audits</h2>
             </div>
-            <Link to="/audits" className="button button-secondary button-small">Open library</Link>
+            <Link to="/audits" className="button button-secondary button-small">
+              <ButtonLabel icon="library" label="Open library" />
+            </Link>
           </div>
           <div className="dashboard-recent-grid">
             {recentAudits.map((audit) => (
@@ -623,7 +750,7 @@ export default function Dashboard() {
                 <div className="dashboard-audit-meta">
                   <span>{getAuditTypeFamilyLabel(audit.auditType)}</span>
                   <span>{audit.site || 'Site TBD'}</span>
-                  <span>{formatDateTime(audit.updatedAt)}</span>
+                  <DashboardMetaPill detail={`${formatDate(audit.updatedAt)} at ${formatTimeOnly(audit.updatedAt)}`} tone="slate" />
                 </div>
                 <div className="dashboard-audit-progress">
                   <div className="dashboard-audit-progress-track">

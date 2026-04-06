@@ -7,7 +7,6 @@ import AppLayout from './layouts/AppLayout'
 import Dashboard from './pages/Dashboard'
 import AuditsPage from './pages/AuditsPage'
 import NotFound from './pages/NotFound'
-import PlanningOverviewPage from './features/planning/pages/PlanningOverviewPage'
 import YearCalendarPage from './features/planning/pages/YearCalendarPage'
 import ThreeYearPlanPage from './features/planning/pages/ThreeYearPlanPage'
 import PlanningReportsPage from './features/planning/pages/PlanningReportsPage'
@@ -38,7 +37,7 @@ function App() {
         <Routes>
           <Route path="/" element={<AppLayout />}>
             <Route index element={<Dashboard />} />
-            <Route path="planning" element={<PlanningOverviewPage />} />
+            <Route path="planning" element={<Navigate to="/planning/calendar" replace />} />
             <Route path="planning/calendar" element={<YearCalendarPage />} />
             <Route path="planning/three-year" element={<ThreeYearPlanPage />} />
             <Route path="planning/reports" element={<PlanningReportsPage />} />

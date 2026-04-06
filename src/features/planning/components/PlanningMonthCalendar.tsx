@@ -1,4 +1,5 @@
 import { StatusBadge } from '../../../components/ui'
+import { ButtonLabel } from '../../../components/icons'
 import type { AuditPlanRecord } from '../../../types/planning'
 import {
   buildPlanningCalendarWeeks,
@@ -13,14 +14,18 @@ export default function PlanningMonthCalendar({
   records,
   year,
   month,
+  focusedRecordId,
   onSelectDay,
   onSelectRecord,
+  onCompleteRecord,
 }: {
   records: AuditPlanRecord[]
   year: number
   month: number
+  focusedRecordId?: string | null
   onSelectDay: (date: string) => void
   onSelectRecord: (recordId: string) => void
+  onCompleteRecord?: (recordId: string) => void
 }) {
   const weeks = buildPlanningCalendarWeeks(records, year, month)
 
@@ -44,7 +49,7 @@ export default function PlanningMonthCalendar({
                 key={day.isoDate}
                 role="button"
                 tabIndex={0}
-                className={`planning-day-cell ${day.isCurrentMonth ? '' : 'planning-day-cell-muted'} ${day.isWeekend ? 'planning-day-cell-weekend' : ''} ${day.holidayLabel ? 'planning-day-cell-holiday' : ''}`}
+                className={`planning-day-cell ${day.isCurrentMonth ? '' : 'planning-day-cell-muted'} ${day.isWeekend ? 'planning-day-cell-weekend' : ''} ${day.holidayLabel ? 'planning-day-cell-holiday' : ''} ${day.isToday ? 'planning-day-cell-today' : ''} ${day.records.some((record) => record.id === focusedRecordId) ? 'planning-day-cell-focused' : ''}`}
                 onClick={() => onSelectDay(day.isoDate)}
                 onKeyDown={(event) => {
                   if (event.key === 'Enter' || event.key === ' ') {
@@ -55,23 +60,33 @@ export default function PlanningMonthCalendar({
               >
                 <div className="planning-day-cell-header">
                   <div className="planning-day-cell-title">
-                    <span>{day.dateNumber}</span>
+                    <span className={day.isToday ? 'planning-day-cell-date-today' : ''}>{day.dateNumber}</span>
                     {day.holidayLabel ? <em>{day.holidayLabel}</em> : null}
                   </div>
-                  {day.records.length ? <small>{day.records.length}</small> : null}
+                  {day.isToday ? <small className="planning-day-cell-today-badge">Today</small> : day.records.length ? <small>{day.records.length}</small> : null}
                 </div>
                 <div className="planning-day-cell-events">
                   {day.records.slice(0, 4).map((record) => {
                     const status = getDerivedPlanStatus(record)
 
+                    const canComplete = status !== 'Completed' && status !== 'Cancelled' && !!onCompleteRecord
+
                     return (
-                      <button
+                      <div
                         key={`${record.id}-${day.isoDate}`}
-                        type="button"
-                        className={`planning-calendar-event ${getPlanColorClass(record)} ${getStatusAccentClass(status)}`}
+                        role="button"
+                        tabIndex={0}
+                        className={`planning-calendar-event ${getPlanColorClass(record)} ${getStatusAccentClass(status)} ${record.id === focusedRecordId ? 'planning-calendar-event-focused' : ''}`}
                         onClick={(event) => {
                           event.stopPropagation()
                           onSelectRecord(record.id)
+                        }}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault()
+                            event.stopPropagation()
+                            onSelectRecord(record.id)
+                          }
                         }}
                       >
                         <strong>{record.title}</strong>
@@ -80,7 +95,21 @@ export default function PlanningMonthCalendar({
                           <StatusBadge value={status} />
                         </div>
                         <span>{getPlanWindowLabel(record)}</span>
-                      </button>
+                        {canComplete ? (
+                          <div className="planning-calendar-event-actions">
+                            <button
+                              type="button"
+                              className="planning-calendar-event-complete"
+                              onClick={(event) => {
+                                event.stopPropagation()
+                                onCompleteRecord(record.id)
+                              }}
+                            >
+                              <ButtonLabel icon="complete" label="Mark completed" />
+                            </button>
+                          </div>
+                        ) : null}
+                      </div>
                     )
                   })}
                   {day.records.length > 4 ? <div className="planning-calendar-more">+{day.records.length - 4} more</div> : null}

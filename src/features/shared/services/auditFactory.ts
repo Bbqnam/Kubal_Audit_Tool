@@ -1,6 +1,6 @@
 import { actionPlanItems } from '../../../data/actionPlan'
 import { vda63AuditInfo, vda63Participants, vda63SeedResponses } from '../../../data/vda63'
-import { vda65AuditInfo, vda65Checklist, vda65ProductInfo } from '../../../data/vda65'
+import { vda65AuditInfo, vda65Checklist, vda65ChecklistTemplate, vda65ProductInfo } from '../../../data/vda65'
 import { getAuditStandardLabel } from '../../../data/auditTypes'
 import { vda63QuestionBank } from '../../vda63/data/questionBank'
 import { chapterOrder } from '../../../utils/auditUtils'
@@ -69,10 +69,52 @@ function createBlankVda65Checklist() {
   return clone(vda65Checklist).map<Vda65ChecklistItem>((item) => ({
     ...item,
     status: 'Pending',
-    defectType: '',
-    severity: 'Low',
+    defectCount: 0,
     comment: '',
   }))
+}
+
+function normalizeLegacyVda65ChecklistItem(item: Partial<Vda65ChecklistItem> & { id: string }) {
+  return {
+    id: item.id,
+    number: item.number ?? '',
+    section: item.section ?? 'Legacy',
+    requirement: item.requirement ?? '',
+    status: item.status ?? 'Pending',
+    specialCharacteristic: item.specialCharacteristic ?? '',
+    defectClass: item.defectClass ?? 'C',
+    unit: item.unit ?? '',
+    minTolerance: item.minTolerance ?? '',
+    nominalValue: item.nominalValue ?? '',
+    maxTolerance: item.maxTolerance ?? '',
+    sampleSize: item.sampleSize ?? null,
+    defectCount: item.defectCount ?? (item.status === 'NOK' ? 1 : 0),
+    photoReference: item.photoReference ?? '',
+    comment: item.comment ?? '',
+  } satisfies Vda65ChecklistItem
+}
+
+function normalizeVda65Checklist(items: Vda65ChecklistItem[] | undefined) {
+  const storedItems = items ?? []
+  const templateById = new Map(vda65ChecklistTemplate.map((item) => [item.id, item]))
+  const hasTemplateItems = storedItems.some((item) => templateById.has(item.id))
+
+  if (!storedItems.length || hasTemplateItems) {
+    const storedById = new Map(storedItems.map((item) => [item.id, item]))
+
+    return vda65ChecklistTemplate.map((templateItem) => {
+      const storedItem = storedById.get(templateItem.id)
+
+      return {
+        ...clone(templateItem),
+        status: storedItem?.status ?? 'Pending',
+        defectCount: storedItem?.defectCount ?? (storedItem?.status === 'NOK' ? 1 : 0),
+        comment: storedItem?.comment ?? '',
+      }
+    })
+  }
+
+  return storedItems.map((item) => normalizeLegacyVda65ChecklistItem(item))
 }
 
 function createBlankProductInfo(base: ProductInfo): ProductInfo {
@@ -97,6 +139,17 @@ export function normalizeAuditRecordShape(record: AuditRecord): AuditRecord {
     return {
       ...record,
       standard,
+      data: {
+        auditInfo: {
+          ...createBlankAuditInfo(vda65AuditInfo),
+          ...record.data.auditInfo,
+        },
+        productInfo: {
+          ...createBlankProductInfo(vda65ProductInfo),
+          ...record.data.productInfo,
+        },
+        checklist: normalizeVda65Checklist(record.data.checklist),
+      },
     }
   }
 

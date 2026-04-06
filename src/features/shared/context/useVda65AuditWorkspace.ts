@@ -4,7 +4,6 @@ import type {
   ProductInfo,
   Vda65ChecklistItem,
   Vda65ChecklistStatus,
-  Vda65Severity,
 } from '../../../types/audit'
 import { useAuditWorkspace } from './useAuditWorkspace'
 
@@ -68,7 +67,7 @@ export function useVda65AuditWorkspace() {
     },
     updateVda65ChecklistItem: (
       id: string,
-      patch: Partial<Pick<Vda65ChecklistItem, 'status' | 'defectType' | 'severity' | 'comment'>>,
+      patch: Partial<Pick<Vda65ChecklistItem, 'status' | 'defectCount' | 'comment'>>,
     ) => {
       workspace.updateAuditRecord(audit.id, (current) => {
         if (current.auditType !== 'vda65') {
@@ -81,16 +80,16 @@ export function useVda65AuditWorkspace() {
           nextPatch.status = patch.status as Vda65ChecklistStatus
         }
 
-        if (patch.defectType !== undefined) {
-          nextPatch.defectType = patch.defectType
-        }
-
-        if (patch.severity !== undefined) {
-          nextPatch.severity = patch.severity as Vda65Severity
+        if (patch.defectCount !== undefined) {
+          nextPatch.defectCount = Math.max(0, Math.floor(patch.defectCount))
         }
 
         if (patch.comment !== undefined) {
           nextPatch.comment = patch.comment
+        }
+
+        if (nextPatch.status === 'OK' || nextPatch.status === 'Pending') {
+          nextPatch.defectCount = 0
         }
 
         return {

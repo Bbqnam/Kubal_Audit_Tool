@@ -5,7 +5,7 @@ import { AuditWorkspaceContext } from './AuditWorkspaceValue'
 import type { AuditWorkspaceContextValue } from './AuditWorkspaceValue'
 import { changeAuditRecordType, createAuditRecord, duplicateAuditRecord, synchronizeAuditRecord } from '../services/auditFactory'
 import { createLocalStorageAuditRepository } from '../services/auditRepository'
-import { getPlanExecutionAuditType } from '../../planning/services/planningUtils'
+import { getPlanExecutionAuditType, mergePlanningYears } from '../../planning/services/planningUtils'
 import {
   createPlanRecord as createPlanningRecord,
   duplicatePlanRecord as duplicatePlanningRecord,
@@ -19,9 +19,14 @@ export function AuditWorkspaceProvider({ children }: { children: React.ReactNode
   const initialWorkspace = useMemo(() => repository.loadWorkspace(), [repository])
   const [audits, setAudits] = useState<AuditRecord[]>(initialWorkspace.audits)
   const [planningRecords, setPlanningRecords] = useState<AuditPlanRecord[]>(initialWorkspace.planningRecords)
+  const [storedPlanningYears, setStoredPlanningYears] = useState<number[]>(initialWorkspace.planningYears)
   const [planningChecklist, setPlanningChecklist] = useState(initialWorkspace.planningChecklist)
   const [saveState, setSaveState] = useState<AuditWorkspaceContextValue['saveState']>('Saved')
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(() => audits[0]?.updatedAt ?? null)
+  const planningYears = useMemo(
+    () => mergePlanningYears(planningRecords, storedPlanningYears),
+    [planningRecords, storedPlanningYears],
+  )
 
   useEffect(() => {
     if (isFirstRender.current) {
@@ -30,18 +35,19 @@ export function AuditWorkspaceProvider({ children }: { children: React.ReactNode
     }
 
     const timeoutId = window.setTimeout(() => {
-      repository.saveWorkspace({ audits, planningRecords, planningChecklist })
+      repository.saveWorkspace({ audits, planningRecords, planningYears, planningChecklist })
       setSaveState('Saved')
       setLastSavedAt(new Date().toISOString())
     }, 250)
 
     return () => window.clearTimeout(timeoutId)
-  }, [audits, planningChecklist, planningRecords, repository])
+  }, [audits, planningChecklist, planningRecords, planningYears, repository])
 
   const value = useMemo<AuditWorkspaceContextValue>(
     () => ({
       audits,
       planningRecords,
+      planningYears,
       planningChecklist,
       saveState,
       lastSavedAt,
@@ -228,6 +234,26 @@ export function AuditWorkspaceProvider({ children }: { children: React.ReactNode
           }),
         )
       },
+      addPlanningYear: (year) => {
+        if (!Number.isInteger(year) || year <= 0) {
+          return
+        }
+
+        setSaveState('Saving')
+        setStoredPlanningYears((current) => (current.includes(year) ? current : [...current, year]))
+      },
+      deletePlanningYear: (year) => {
+        if (!Number.isInteger(year) || year <= 0) {
+          return
+        }
+
+        if (planningRecords.some((record) => record.year === year)) {
+          return
+        }
+
+        setSaveState('Saving')
+        setStoredPlanningYears((current) => current.filter((entry) => entry !== year))
+      },
       updatePlanningChecklistYear: (id, year, status) => {
         setSaveState('Saving')
         setPlanningChecklist((current) =>
@@ -250,7 +276,7 @@ export function AuditWorkspaceProvider({ children }: { children: React.ReactNode
         )
       },
     }),
-    [audits, lastSavedAt, planningChecklist, planningRecords, saveState],
+    [audits, lastSavedAt, planningChecklist, planningRecords, planningYears, saveState],
   )
 
   return <AuditWorkspaceContext.Provider value={value}>{children}</AuditWorkspaceContext.Provider>

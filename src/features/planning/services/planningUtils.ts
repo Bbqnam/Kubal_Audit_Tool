@@ -19,8 +19,17 @@ export const defaultPlanningDepartments = [
   'Commercial',
 ] as const
 
+export function mergePlanningYears(records: AuditPlanRecord[], additionalYears: number[] = []) {
+  return [
+    ...new Set([
+      ...records.map((record) => record.year),
+      ...additionalYears.filter((year) => Number.isInteger(year) && year > 0),
+    ]),
+  ].sort((left, right) => left - right)
+}
+
 export function getPlanningYears(records: AuditPlanRecord[]) {
-  return [...new Set(records.map((record) => record.year))].sort((left, right) => left - right)
+  return mergePlanningYears(records)
 }
 
 export function getPlanningDepartmentOptions(records: AuditPlanRecord[]) {
@@ -268,10 +277,12 @@ export function buildPlanningCalendarWeeks(records: AuditPlanRecord[], year: num
     ...getSwedishHolidayMap(gridStart.getFullYear()),
     ...getSwedishHolidayMap(gridEnd.getFullYear()),
   ])
+  const todayIso = toIsoDate(new Date())
   const days: Array<{
     isoDate: string
     dateNumber: number
     isCurrentMonth: boolean
+    isToday: boolean
     isWeekend: boolean
     holidayLabel: string | null
     records: AuditPlanRecord[]
@@ -288,6 +299,7 @@ export function buildPlanningCalendarWeeks(records: AuditPlanRecord[], year: num
       isoDate,
       dateNumber: cursor.getDate(),
       isCurrentMonth: cursor.getMonth() === month - 1,
+      isToday: isoDate === todayIso,
       isWeekend: weekday === 0 || weekday === 6,
       holidayLabel: holidayMap.get(isoDate) ?? null,
       records: dayRecords,
@@ -341,6 +353,24 @@ export function getStatusAccentClass(status: string) {
   }
 
   return 'planning-status-accent-planned'
+}
+
+export function getPlanStatusDotClass(status: string) {
+  const normalized = status.toLowerCase()
+
+  if (normalized === 'completed') {
+    return 'planning-status-dot-completed'
+  }
+
+  if (normalized === 'overdue' || normalized === 'cancelled' || normalized === 'delayed') {
+    return 'planning-status-dot-overdue'
+  }
+
+  if (normalized === 'in progress') {
+    return 'planning-status-dot-in-progress'
+  }
+
+  return 'planning-status-dot-planned'
 }
 
 export function getUpcomingPlanningRecords(records: AuditPlanRecord[], days = 90, referenceDate = new Date()) {

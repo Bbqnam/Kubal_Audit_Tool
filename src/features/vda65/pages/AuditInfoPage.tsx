@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import ExportCenter from '../../../components/ExportCenter'
+import { ButtonLabel } from '../../../components/icons'
 import { getAuditSectionPath } from '../../../data/navigation'
 import { DetailList, Field, MetricCard, PageHeader, Panel } from '../../../components/ui'
 import { useVda65AuditWorkspace } from '../../shared/context/useVda65AuditWorkspace'
@@ -13,7 +14,7 @@ export default function Vda65AuditInfoPage() {
         eyebrow="VDA 6.5"
         eyebrowTone="vda65"
         title="Audit information"
-        subtitle="Set the product audit context and then proceed into product-specific details and checklist execution."
+        subtitle="Set the product-audit context, then move into product details and checklist execution."
       />
 
       <div className="metrics-grid">
@@ -23,7 +24,7 @@ export default function Vda65AuditInfoPage() {
       </div>
 
       <div className="form-grid">
-        <Panel title="Audit details" description="Local state only for now, but structured to support future persistence.">
+        <Panel title="Audit details" description="Core metadata for the current product audit record.">
           <div className="input-grid">
             <Field label="Audit title">
               <input value={audit.title} onChange={(event) => updateAuditTitle(event.target.value)} />
@@ -61,20 +62,20 @@ export default function Vda65AuditInfoPage() {
             </Field>
           </div>
         </Panel>
-        <Panel title="Next steps" description="Shared reporting and action-plan patterns align with the process-audit module.">
+        <Panel title="Next steps" description="Checklist, findings, actions, and reporting stay aligned with the wider audit system.">
           <DetailList
             items={[
               { label: 'Flow', value: 'Audit Info -> Product Info -> Checklist -> Results -> Findings -> Report' },
-              { label: 'Checklist status', value: 'Each requirement is recorded as OK or NOK' },
-              { label: 'Result logic', value: 'NOK count, severity mix, and defect overview drive the audit result' },
+              { label: 'Checklist status', value: 'Each workbook requirement is recorded as Pending, OK, or NOK' },
+              { label: 'Result logic', value: 'Each NOK contributes A/B/C defect points (100 / 50 / 10) to the VDA 6.5 score band' },
             ]}
           />
           <div className="module-actions module-actions-spaced">
             <Link to={getAuditSectionPath(audit.id, 'vda65', 'product')} className="button button-primary">
-              Product info
+              <ButtonLabel icon="next" label="Product info" />
             </Link>
             <Link to={getAuditSectionPath(audit.id, 'vda65', 'checklist')} className="button button-secondary">
-              Go to checklist
+              <ButtonLabel icon="checklist" label="Go to checklist" />
             </Link>
           </div>
         </Panel>

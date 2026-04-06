@@ -37,7 +37,6 @@ const genericSectionNavigation = [
 ]
 
 const planningSectionNavigation = [
-  { label: 'Planner', to: '/planning' },
   { label: 'Year Calendar', to: '/planning/calendar' },
   { label: '3-Year Plan', to: '/planning/three-year' },
   { label: 'Reports', to: '/planning/reports' },
@@ -57,6 +56,54 @@ export function getAuditSectionPath(auditId: string, auditType: AuditType, secti
 
 export function getAuditRecordHomePath(record: Pick<AuditRecord, 'id' | 'auditType'>) {
   return getAuditRootPath(record.id, record.auditType)
+}
+
+export function getPlanningCalendarPath({
+  year,
+  month,
+  recordId,
+}: {
+  year?: number
+  month?: number
+  recordId?: string
+} = {}) {
+  const params = new URLSearchParams()
+
+  if (year) {
+    params.set('year', String(year))
+  }
+
+  if (month) {
+    params.set('month', String(month))
+  }
+
+  if (recordId) {
+    params.set('record', recordId)
+  }
+
+  const query = params.toString()
+  return query ? `/planning/calendar?${query}` : '/planning/calendar'
+}
+
+export function getPlanningReportsPath({
+  year,
+  month,
+}: {
+  year?: number
+  month?: number | 'all'
+} = {}) {
+  const params = new URLSearchParams()
+
+  if (year) {
+    params.set('year', String(year))
+  }
+
+  if (month) {
+    params.set('month', String(month))
+  }
+
+  const query = params.toString()
+  return query ? `/planning/reports?${query}` : '/planning/reports'
 }
 
 export function getModuleNavigation(module: AuditType | 'planning' | undefined, auditId?: string) {

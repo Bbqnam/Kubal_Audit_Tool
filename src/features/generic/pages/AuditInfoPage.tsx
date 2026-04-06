@@ -26,7 +26,7 @@ export default function GenericAuditInfoPage() {
         eyebrow={auditTypeLabel}
         eyebrowTone={audit.auditType}
         title="Audit information"
-        subtitle="Start from one shared audit template. Selecting a specialised template switches this record into the matching questionnaire or checklist workflow."
+        subtitle="Core audit setup for the shared template before you switch into a specialised workflow."
       />
 
       <div className="metrics-grid">
@@ -36,7 +36,7 @@ export default function GenericAuditInfoPage() {
       </div>
 
       <div className="form-grid">
-        <Panel title="Template selection" description="Choose the audit type first. Specialised templates open their own dedicated question or checklist workflows.">
+        <Panel title="Template selection" description="Choose the audit type first, then continue in the matching workflow.">
           <div className="input-grid">
             <Field label="Audit template">
               <select value={audit.auditType} onChange={(event) => handleChangeTemplate(event.target.value)}>
@@ -53,7 +53,7 @@ export default function GenericAuditInfoPage() {
           </div>
         </Panel>
 
-        <Panel title="Audit details" description="These core fields stay consistent across the shared template before you move into any specialised audit content.">
+        <Panel title="Audit details" description="These core fields stay consistent before you move into specialised audit content.">
           <div className="input-grid">
             <Field label="Audit title">
               <input value={audit.title} onChange={(event) => updateAuditTitle(event.target.value)} />
@@ -95,7 +95,7 @@ export default function GenericAuditInfoPage() {
           </div>
         </Panel>
 
-        <Panel title="Workflow" description="The shared template becomes the working audit container until a specific standard or specialised format is selected.">
+        <Panel title="Workflow" description="The shared template stays the working container until a dedicated format is selected.">
           <DetailList
             items={[
               { label: 'Selected template', value: auditTypeLabel },

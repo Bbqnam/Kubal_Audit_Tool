@@ -26,12 +26,12 @@ export default function ExportCenter({
 
   return (
     <Panel
-      title="Export Center"
-      description={description ?? 'Integration points are prepared for future Excel and PDF generation services.'}
+      title="Exports"
+      description={description ?? 'Prepare Excel or PDF output from the current view.'}
       actions={<ExportButtons busy={busy} onExcel={() => void runExport('excel')} onPdf={() => void runExport('pdf')} />}
     >
       <div className="export-center-copy">
-        <p>Exports use a typed adapter interface so file generators can be added later without changing page-level code.</p>
+        <p>Export actions stay consistent across planning, audits, and reports.</p>
         {message ? <p className="export-feedback">{message}</p> : null}
       </div>
     </Panel>

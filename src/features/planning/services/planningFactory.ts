@@ -8,9 +8,10 @@ import type {
 
 type PlanRecordInput = Omit<
   AuditPlanRecord,
-  'id' | 'year' | 'month' | 'createdAt' | 'updatedAt' | 'changeHistory' | 'actualCompletionDate' | 'completionResult' | 'completionSummary'
+  'id' | 'year' | 'month' | 'createdAt' | 'updatedAt' | 'changeHistory' | 'actualCompletionDate' | 'completionDateChangeReason' | 'completionResult' | 'completionSummary'
 > & {
   actualCompletionDate?: string | null
+  completionDateChangeReason?: string
   completionResult?: AuditPlanCompletionResult
   completionSummary?: string
 }
@@ -67,6 +68,7 @@ export function normalizePlanningRecordShape(record: AuditPlanRecord): AuditPlan
     year: derived.year,
     month: derived.month,
     actualCompletionDate: record.actualCompletionDate ?? null,
+    completionDateChangeReason: record.completionDateChangeReason ?? '',
     completionResult: record.completionResult ?? '',
     completionSummary: record.completionSummary ?? '',
     createdAt: record.createdAt ?? now,
@@ -91,6 +93,7 @@ export function createPlanRecord(input: PlanRecordInput): AuditPlanRecord {
     year: derived.year,
     month: derived.month,
     actualCompletionDate: input.actualCompletionDate ?? null,
+    completionDateChangeReason: input.completionDateChangeReason ?? '',
     completionResult: input.completionResult ?? '',
     completionSummary: input.completionSummary ?? '',
     createdAt: timestamp,
@@ -108,6 +111,7 @@ export function duplicatePlanRecord(source: AuditPlanRecord) {
     status: source.status === 'Cancelled' ? 'Planned' : source.status,
     linkedAuditId: null,
     actualCompletionDate: null,
+    completionDateChangeReason: '',
     completionResult: '',
     completionSummary: '',
     createdAt: timestamp,
@@ -137,6 +141,7 @@ export function updatePlanWithHistory(
     return {
       ...merged,
       actualCompletionDate: updates.actualCompletionDate ?? null,
+      completionDateChangeReason: updates.completionDateChangeReason ?? '',
       completionResult: updates.completionResult ?? '',
       completionSummary: updates.completionSummary ?? '',
     }

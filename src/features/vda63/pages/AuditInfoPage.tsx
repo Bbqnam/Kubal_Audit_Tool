@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import ExportCenter from '../../../components/ExportCenter'
+import { ButtonLabel } from '../../../components/icons'
 import { getAuditSectionPath, vda63ChapterTitles } from '../../../data/navigation'
 import { buildVda63Summary, chapterOrder, getVda63AnsweredCount, getVda63ChapterStatusLabel } from '../../../utils/auditUtils'
 import { DetailList, Field, MetricCard, PageHeader, Panel, ProgressBar, StatusBadge } from '../../../components/ui'
@@ -22,7 +23,7 @@ export default function Vda63AuditInfoPage() {
         eyebrow="VDA 6.3"
         eyebrowTone="vda63"
         title="Audit information"
-        subtitle="Define the process audit context before moving into the chapter assessments."
+        subtitle="Define the process-audit context, chapter scope, and next step from one control point."
       />
 
       <div className="metrics-grid">
@@ -31,7 +32,7 @@ export default function Vda63AuditInfoPage() {
         <MetricCard label="Answered questions" value={`${answeredQuestions}/${scopedQuestionCount}`} tone="success" />
       </div>
 
-      <Panel title="Audit control center" description="Use this area to monitor audit readiness and move directly into the next chapter." actions={<StatusBadge value={vda63AuditInfo.auditStatus} />}>
+      <Panel title="Audit control center" description="Monitor readiness, progress, and the next chapter from one place." actions={<StatusBadge value={vda63AuditInfo.auditStatus} />}>
         <div className="audit-control-grid">
           <div className="audit-control-primary">
             <div className="audit-control-header">
@@ -40,7 +41,7 @@ export default function Vda63AuditInfoPage() {
                 <h3>{nextStepLabel}</h3>
               </div>
               <Link to={nextStepLink} className="button button-primary button-emphasis">
-                Next step
+                <ButtonLabel icon="next" label="Next step" />
               </Link>
             </div>
             <ProgressBar value={progressPercent} label={`${answeredQuestions} of ${scopedQuestionCount} in-scope questions documented`} />
@@ -79,7 +80,7 @@ export default function Vda63AuditInfoPage() {
       </Panel>
 
       <div className="form-grid">
-        <Panel title="Audit details" description="Editable metadata stored locally in the workspace state.">
+        <Panel title="Audit details" description="Editable metadata stored locally in the workspace.">
           <div className="input-grid">
             <Field label="Audit title">
               <input value={audit.title} onChange={(event) => updateAuditTitle(event.target.value)} />
@@ -118,7 +119,7 @@ export default function Vda63AuditInfoPage() {
           </div>
         </Panel>
 
-        <Panel title="Chapter scope" description="Mark only the audited VDA 6.3 chapters as in scope. Out-of-scope chapters stay neutral and do not affect the summary.">
+        <Panel title="Chapter scope" description="Only in-scope chapters affect the summary. Neutral chapters stay out of the result.">
           <div className="chapter-scope-grid">
             {chapterOrder.map((chapter) => {
               const chapterSummary = summary.chapters.find((item) => item.chapter === chapter)
@@ -148,7 +149,7 @@ export default function Vda63AuditInfoPage() {
           </div>
         </Panel>
 
-        <Panel title="Workflow" description="Common audit concepts are available throughout the module.">
+        <Panel title="Workflow" description="Shared audit concepts stay available throughout the module.">
           <DetailList
             items={[
               { label: 'Shared concept', value: 'Findings, comments, action plan, export center' },
@@ -158,10 +159,10 @@ export default function Vda63AuditInfoPage() {
           />
           <div className="module-actions module-actions-spaced">
             <Link to={nextStepLink} className="button button-primary">
-              {nextStepLabel}
+              <ButtonLabel icon="next" label={nextStepLabel} />
             </Link>
             <Link to={getAuditSectionPath(audit.id, 'vda63', 'summary')} className="button button-secondary">
-              Summary
+              <ButtonLabel icon="summary" label="Summary" />
             </Link>
           </div>
         </Panel>

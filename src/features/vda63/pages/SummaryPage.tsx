@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import ExportCenter from '../../../components/ExportCenter'
+import { ButtonLabel } from '../../../components/icons'
 import { getAuditSectionPath } from '../../../data/navigation'
 import { MetricCard, PageHeader, Panel, StatusBadge, StatusLegend } from '../../../components/ui'
 import { useVda63AuditWorkspace } from '../../shared/context/useVda63AuditWorkspace'
@@ -47,7 +48,7 @@ export default function Vda63SummaryPage() {
         subtitle="Scope-aware evaluation view that separates neutral chapters from completed results and downgrade cases."
         actions={
           <Link to={getAuditSectionPath(audit.id, 'vda63', 'action-plan')} className="button button-primary">
-            Open action plan
+            <ButtonLabel icon="checklist" label="Open action plan" />
           </Link>
         }
       />
@@ -102,7 +103,7 @@ export default function Vda63SummaryPage() {
           </ul>
         </Panel>
         <Panel title="Audit classification" description="Final classification is calculated only from chapters that were actually audited in scope.">
-          <div className="stack-list">
+          <ul className="stack-list">
             <li>
               <strong>Final classification</strong>
               <p>{summary.finalStatus}</p>
@@ -119,7 +120,7 @@ export default function Vda63SummaryPage() {
               <strong>Neutral chapters</strong>
               <p>{summary.notEvaluatedChapterCount}</p>
             </li>
-          </div>
+          </ul>
         </Panel>
       </div>
 

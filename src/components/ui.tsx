@@ -1,24 +1,27 @@
 import { useEffect } from 'react'
-import { NavLink } from 'react-router-dom'
+import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { getAuditToneStyle, getAuditTypeFamilyLabel, getAuditTypeLabel } from '../data/auditTypes'
 import type { AuditType } from '../types/audit'
+import { ButtonLabel } from './icons'
 
 type PanelProps = {
   title?: string
   description?: string
   children: React.ReactNode
   actions?: React.ReactNode
+  className?: string
+  bodyClassName?: string
 }
 
-export function Panel({ title, description, children, actions }: PanelProps) {
+export function Panel({ title, description, children, actions, className, bodyClassName }: PanelProps) {
   const hasCopy = Boolean(title || description)
 
   return (
-    <section className="panel">
+    <section className={`panel ${className ?? ''}`.trim()}>
       {title || description || actions ? (
         <div className={`panel-header ${hasCopy ? '' : 'panel-header-actions-only'}`}>
           {hasCopy ? (
-            <div>
+            <div className="panel-heading">
               {title ? <h2>{title}</h2> : null}
               {description ? <p>{description}</p> : null}
             </div>
@@ -26,7 +29,7 @@ export function Panel({ title, description, children, actions }: PanelProps) {
           {actions ? <div className="panel-actions">{actions}</div> : null}
         </div>
       ) : null}
-      <div className="panel-body">{children}</div>
+      <div className={`panel-body ${bodyClassName ?? ''}`.trim()}>{children}</div>
     </section>
   )
 }
@@ -35,23 +38,45 @@ export function PageHeader({
   eyebrow,
   eyebrowTone,
   title,
-  subtitle,
   actions,
 }: {
   eyebrow?: React.ReactNode
   eyebrowTone?: AuditType | string
-  title: string
+  title?: string
   subtitle?: string
   actions?: React.ReactNode
 }) {
+  const location = useLocation()
+  const navigate = useNavigate()
+  const canGoBack = location.pathname !== '/'
+
   return (
     <div className="section-header">
       <div>
         {eyebrow ? <span className="section-eyebrow" style={eyebrowTone ? getAuditToneStyle(eyebrowTone, 'strong') : undefined}>{eyebrow}</span> : null}
-        <h1>{title}</h1>
-        {subtitle ? <p>{subtitle}</p> : null}
+        {title ? <h1>{title}</h1> : null}
       </div>
-      {actions ? <div className="section-header-actions">{actions}</div> : null}
+      {actions || canGoBack ? (
+        <div className="section-header-actions">
+          {actions}
+          {canGoBack ? (
+            <button
+              type="button"
+              className="button button-small topbar-back-button"
+              onClick={() => {
+                if (window.history.length > 1) {
+                  navigate(-1)
+                  return
+                }
+
+                navigate('/')
+              }}
+            >
+              <ButtonLabel icon="back" label="Back" />
+            </button>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   )
 }
@@ -108,7 +133,9 @@ export function DashboardCard({
           ))}
         </div>
       </div>
-      <span className="card-action">Open module</span>
+      <span className="card-action">
+        <ButtonLabel icon="open" label="Open module" />
+      </span>
     </NavLink>
   )
 }
@@ -205,10 +232,10 @@ export function ExportButtons({
   return (
     <div className="export-actions">
       <button type="button" className="button button-secondary" onClick={onExcel} disabled={busy}>
-        Export Excel
+        <ButtonLabel icon="export" label="Export Excel" />
       </button>
       <button type="button" className="button button-primary" onClick={onPdf} disabled={busy}>
-        Export PDF
+        <ButtonLabel icon="export" label="Export PDF" />
       </button>
     </div>
   )
@@ -259,7 +286,7 @@ export function Modal({
             {description ? <p>{description}</p> : null}
           </div>
           <button type="button" className="button button-secondary button-small" onClick={onClose}>
-            Close
+            <ButtonLabel icon="close" label="Close" />
           </button>
         </div>
         <div className="modal-body">{children}</div>

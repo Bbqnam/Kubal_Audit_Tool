@@ -15,17 +15,20 @@ export default function Vda65ReportPreviewPage() {
         eyebrow="VDA 6.5"
         eyebrowTone="vda65"
         title="Report preview"
-        subtitle="Preview the structure of the product audit report before connecting production-ready file generation."
+        subtitle="Preview the workbook-style product audit report with product identification, class-based scoring, and corrective-action traceability."
       />
 
       <Panel title="Audit details">
         <DetailList
           items={[
+            { label: 'Audit date', value: vda65AuditInfo.date },
             { label: 'Site', value: vda65AuditInfo.site },
             { label: 'Auditor', value: vda65AuditInfo.auditor },
             { label: 'Reference', value: vda65AuditInfo.reference },
+            { label: 'Customer', value: vda65AuditInfo.customer ?? 'n/a' },
             { label: 'Product', value: vda65ProductInfo.productName },
-            { label: 'Batch', value: vda65ProductInfo.batch },
+            { label: 'Specification', value: vda65ProductInfo.productNumber },
+            { label: 'Cast / batch', value: vda65ProductInfo.batch },
             { label: 'Production line', value: vda65ProductInfo.productionLine },
           ]}
         />
@@ -33,26 +36,45 @@ export default function Vda65ReportPreviewPage() {
       <Panel title="Results snapshot">
         <div className="report-summary-list">
           <div>
-            <span>Total checks</span>
-            <strong>{results.totalChecks}</strong>
+            <span>Reviewed checks</span>
+            <strong>{results.reviewedCount}/{results.totalChecks}</strong>
           </div>
           <div>
-            <span>NOK count</span>
-            <strong>{results.nokCount}</strong>
+            <span>Defect points</span>
+            <strong>{results.totalScore}</strong>
           </div>
           <div>
-            <span>Audit status</span>
-            <StatusBadge value={results.resultSummary} />
+            <span>Score band</span>
+            <strong>{results.resultBand ?? 'n/a'}</strong>
+          </div>
+          <div>
+            <span>Audit decision</span>
+            <StatusBadge value={results.auditDecision} />
           </div>
         </div>
+      </Panel>
+
+      <Panel title="Workbook classification">
+        <DetailList
+          items={[
+            { label: 'Class A defects', value: `${results.defectClassOverview.A} x 100 pts` },
+            { label: 'Class B defects', value: `${results.defectClassOverview.B} x 50 pts` },
+            { label: 'Class C defects', value: `${results.defectClassOverview.C} x 10 pts` },
+            { label: 'Workbook thresholds', value: '0-50 Very Good, 51-100 Good, 101-149 Satisfactory, 150+ Not OK' },
+          ]}
+        />
+      </Panel>
+
+      <Panel title="Audit summary">
+        <p>{vda65AuditInfo.notes || 'No summary narrative recorded yet.'}</p>
       </Panel>
 
       <Panel title="Defects and findings">
         <ul className="stack-list">
           {findings.map((item) => (
             <li key={item.id}>
-              <strong>{item.section} - {item.defectType}</strong>
-              <p>{item.comment}</p>
+              <strong>{item.number} - {item.requirement}</strong>
+              <p>{`Class ${item.defectClass} | ${item.defectCount} defect(s) | ${item.comment || 'No narrative captured yet.'}`}</p>
             </li>
           ))}
         </ul>

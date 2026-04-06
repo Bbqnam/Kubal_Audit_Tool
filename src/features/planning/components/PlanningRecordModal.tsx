@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Field, Modal } from '../../../components/ui'
+import { ButtonLabel } from '../../../components/icons'
 import type { AuditPlanRecord, AuditPlanStatus } from '../../../types/planning'
 import type { AuditPlanningStandardOption, InternalExternalClassification } from '../../../types/planning'
 import { processScopedStandards, shiftIsoDate } from '../services/planningUtils'
@@ -100,7 +101,7 @@ export default function PlanningRecordModal({
   const [draft, setDraft] = useState<PlanningEditorDraft>(() =>
     initialRecord ? toDraft(initialRecord) : createDefaultDraft(defaultStartDate),
   )
-  const [showMoreDetails, setShowMoreDetails] = useState(mode === 'edit')
+  const [showMoreDetails, setShowMoreDetails] = useState(false)
 
   const selectedStandardOption = standardOptions.find((item) => item.label === draft.standard)
   const showProcessField = processScopedStandards.has(draft.standard)
@@ -147,14 +148,14 @@ export default function PlanningRecordModal({
         <>
           {mode === 'edit' && onDelete ? (
             <button type="button" className="button button-secondary button-danger" onClick={onDelete}>
-              Delete
+              <ButtonLabel icon="delete" label="Delete" />
             </button>
           ) : null}
           <button type="button" className="button button-secondary" onClick={onClose}>
-            Cancel
+            <ButtonLabel icon="close" label="Cancel" />
           </button>
           <button type="submit" form="planning-record-form" className="button button-primary">
-            {mode === 'create' ? 'Add audit' : 'Save changes'}
+            <ButtonLabel icon={mode === 'create' ? 'add' : 'save'} label={mode === 'create' ? 'Add audit' : 'Save changes'} />
           </button>
         </>
       }
@@ -206,7 +207,7 @@ export default function PlanningRecordModal({
         ) : null}
         <div className="planning-more-details" aria-expanded={showMoreDetails}>
           <button type="button" className="button button-secondary button-small" onClick={() => setShowMoreDetails((current) => !current)}>
-            {showMoreDetails ? 'Hide more details' : 'More details'}
+            <ButtonLabel icon={showMoreDetails ? 'collapse' : 'details'} label={showMoreDetails ? 'Hide details' : 'Show details'} />
           </button>
         </div>
         {showMoreDetails ? (

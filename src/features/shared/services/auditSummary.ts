@@ -34,7 +34,7 @@ function buildVda63RecordPreview(record: Extract<AuditRecord, { auditType: 'vda6
 
 function buildVda65Preview(checklist: Vda65ChecklistItem[]): AuditSummaryPreview {
   const results = calculateVda65Results(checklist)
-  const answeredCount = checklist.filter((item) => item.status !== 'Pending' || item.comment.trim() || item.defectType.trim()).length
+  const answeredCount = checklist.filter((item) => item.status !== 'Pending' || item.comment.trim() || item.defectCount > 0).length
   const progressPercent = checklist.length === 0 ? 0 : Math.round((answeredCount / checklist.length) * 100)
 
   if (progressPercent === 0) {
@@ -46,8 +46,8 @@ function buildVda65Preview(checklist: Vda65ChecklistItem[]): AuditSummaryPreview
 
   return {
     progressPercent,
-    scorePreview: `${results.okCount}/${results.totalChecks} OK`,
-    resultPreview: results.resultSummary,
+    scorePreview: `${results.totalScore} pts`,
+    resultPreview: results.auditDecision,
   }
 }
 

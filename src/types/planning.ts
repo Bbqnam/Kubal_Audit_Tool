@@ -91,6 +91,7 @@ export type AuditPlanRecord = {
   notes: string
   linkedAuditId: string | null
   actualCompletionDate: string | null
+  completionDateChangeReason: string
   completionResult: AuditPlanCompletionResult
   completionSummary: string
   createdAt: string
