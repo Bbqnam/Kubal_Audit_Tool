@@ -166,11 +166,11 @@ export default function PlanningReportsPage() {
         <MetricCard label={`${selectedYear}${selectedMonth !== 'all' ? ` · ${planningMonthLabels[(selectedMonth as number) - 1]}` : ''} planned`} value={currentYearSummary.total} />
         <MetricCard label="Completed" value={`${currentYearSummary.completed} (${completionRate}%)`} tone="success" />
         <MetricCard label="Open / in progress" value={currentYearSummary.planned + currentYearSummary.inProgress} tone="warning" />
-        <MetricCard label="Overdue" value={overduePlans.length} tone={overduePlans.length > 0 ? 'danger' : 'success'} />
+        <MetricCard label="Delayed" value={overduePlans.length} tone={overduePlans.length > 0 ? 'danger' : 'success'} />
       </div>
 
       <Panel
-        title="Look-ahead and overdue risk"
+        title="Look-ahead and delayed risk"
         description="Upcoming demand and immediate schedule issues in one compact view."
         actions={
           <Link to={getPlanningCalendarPath({ year: selectedYear, month: selectedMonth === 'all' ? 1 : selectedMonth })} className="button button-secondary button-small">
@@ -197,7 +197,7 @@ export default function PlanningReportsPage() {
 
           <div className="report-overdue-block">
             <div className="report-overdue-summary">
-              <strong>{overduePlans.length ? `${overduePlans.length} overdue item${overduePlans.length > 1 ? 's' : ''}` : 'No overdue items'}</strong>
+              <strong>{overduePlans.length ? `${overduePlans.length} delayed item${overduePlans.length > 1 ? 's' : ''}` : 'No delayed items'}</strong>
               <span>{overduePlans.length ? 'Focus here first to keep the plan from drifting further.' : 'The current planning window is on track.'}</span>
             </div>
 
@@ -218,7 +218,7 @@ export default function PlanningReportsPage() {
               )) : (
                 <li>
                   <div>
-                    <strong>No overdue items</strong>
+                    <strong>No delayed items</strong>
                     <p>The plan is currently on track.</p>
                   </div>
                   <StatusBadge value="Completed" />
@@ -271,7 +271,7 @@ export default function PlanningReportsPage() {
                       <span>{row.label}</span>
                       <div className="report-standard-chips">
                         <span className="planning-distribution-chip">{row.total} total</span>
-                        {row.overdue > 0 ? <span className="planning-distribution-chip planning-distribution-chip-danger">{row.overdue} overdue</span> : null}
+                        {row.overdue > 0 ? <span className="planning-distribution-chip planning-distribution-chip-danger">{row.overdue} delayed</span> : null}
                         <strong>{row.total > 0 ? Math.round((row.completed / row.total) * 100) : 0}%</strong>
                       </div>
                     </div>
@@ -298,7 +298,7 @@ export default function PlanningReportsPage() {
                     <div className="planning-distribution-metrics">
                       <span className="planning-distribution-chip">{row.total} total</span>
                       <span className="planning-distribution-chip planning-distribution-chip-success">{row.completed} done</span>
-                      {row.overdue > 0 ? <span className="planning-distribution-chip planning-distribution-chip-danger">{row.overdue} overdue</span> : null}
+                      {row.overdue > 0 ? <span className="planning-distribution-chip planning-distribution-chip-danger">{row.overdue} delayed</span> : null}
                     </div>
                   </div>
                   <CompletionBar {...row} />

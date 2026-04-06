@@ -276,7 +276,7 @@ export default function PlanningOverviewPage() {
         <MetricCard label={`${getPlanMonthLabel(selectedMonth)} audits`} value={visibleSummary.total} />
         <MetricCard label="Completed" value={visibleSummary.completed} tone="success" />
         <MetricCard label="In progress" value={visibleSummary.inProgress} tone="warning" />
-        <MetricCard label="Overdue / cancelled" value={visibleSummary.overdue + visibleSummary.cancelled} tone="danger" />
+        <MetricCard label="Delayed / cancelled" value={visibleSummary.overdue + visibleSummary.cancelled} tone="danger" />
       </div>
 
       <Panel
@@ -307,7 +307,7 @@ export default function PlanningOverviewPage() {
               <option value="Planned">Planned</option>
               <option value="In progress">In progress</option>
               <option value="Completed">Completed</option>
-              <option value="Overdue">Overdue</option>
+              <option value="Overdue">Delayed</option>
               <option value="Cancelled">Cancelled</option>
             </select>
           </label>

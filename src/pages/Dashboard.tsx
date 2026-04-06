@@ -1,6 +1,6 @@
 import { Link, useNavigate } from 'react-router-dom'
 import { useState, type FocusEvent as ReactFocusEvent, type MouseEvent as ReactMouseEvent } from 'react'
-import { AuditTypeBadge, PageHeader, StatusBadge } from '../components/ui'
+import { AuditTypeBadge, PageHeader, StatusBadge, getStatusDisplayLabel } from '../components/ui'
 import { ButtonLabel } from '../components/icons'
 import { getAuditRecordHomePath, getPlanningCalendarPath } from '../data/navigation'
 import { getAuditTypeLabel } from '../features/shared/services/auditSummary'
@@ -147,7 +147,7 @@ function getPortfolioHoverDate(record: AuditPlanRecord, referenceDate = new Date
   if (status === 'Overdue') {
     return {
       dateTime: record.plannedEnd,
-      label: 'Due',
+      label: 'Delayed',
       value: formatDate(record.plannedEnd),
     }
   }
@@ -296,7 +296,7 @@ export default function Dashboard() {
   const overdueActionCount = openActionRecords.filter(({ overdue }) => overdue).length
   const inProgressActionCount = openActionRecords.filter(({ overdue, action }) => !overdue && action.status === 'In progress').length
   const openActionCount = openActionRecords.filter(({ overdue, action }) => !overdue && action.status === 'Open').length
-  const actionSummary = `${overdueActionCount} overdue · ${inProgressActionCount} in progress · ${openActionCount} open`
+  const actionSummary = `${overdueActionCount} delayed · ${inProgressActionCount} in progress · ${openActionCount} open`
 
   const portfolioStandardsBreakdown = Object.entries(
     portfolioFilteredPlans.reduce<Record<string, number>>((summary, record) => {
@@ -345,9 +345,6 @@ export default function Dashboard() {
     ? `${currentYear}`
     : `${planningMonthLabels[portfolioMonth - 1]} ${currentYear}`
   const portfolioOverviewLabel = `${currentYear} Audit Review`
-  const portfolioOverviewTitle = portfolioMonth === 'all'
-    ? ''
-    : `${planningMonthLabels[portfolioMonth - 1]} overview`
   const activeStatusCount = portfolioHoverStatus
     ? portfolioStatusSegments.find((segment) => segment.label === portfolioHoverStatus)?.value ?? 0
     : 0
@@ -397,7 +394,7 @@ export default function Dashboard() {
         title="Audit Dashboard"
         actions={
           <div className="section-header-actions">
-            <DashboardHelpButton text="Balanced view of planning pressure, overdue risk, and live execution across the audit programme." />
+            <DashboardHelpButton text="Balanced view of planning pressure, delayed risk, and live execution across the audit programme." />
             <div className="dashboard-header-launch">
               <button type="button" className="button button-primary" onClick={() => handleCreateAudit('template')}>
                 <ButtonLabel icon="add" label="New Audit" />
@@ -420,7 +417,6 @@ export default function Dashboard() {
               <div className="dashboard-pulse-heading">
                 <span className="dashboard-pulse-label">{portfolioOverviewLabel}</span>
                 <div className="dashboard-pulse-heading-row">
-                  {portfolioOverviewTitle ? <h2>{portfolioOverviewTitle}</h2> : null}
                   <div className="dashboard-pulse-inline-badges" aria-label="Most common standards in this view">
                     {pulseFeaturedStandards.map(({ standard, count }) => (
                       <span key={standard} className={`dashboard-standard-chip dashboard-standard-chip-inline dashboard-standard-${getStandardTone(standard)}`}>
@@ -487,8 +483,8 @@ export default function Dashboard() {
                       type="button"
                       className={`dashboard-segment dashboard-segment-${segment.label.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`}
                       style={{ width: `${(segment.value / total) * 100}%` }}
-                      title={`${segment.label}: ${segment.value}`}
-                      aria-label={`${segment.label}: ${segment.value}`}
+                      title={`${getStatusDisplayLabel(segment.label)}: ${segment.value}`}
+                      aria-label={`${getStatusDisplayLabel(segment.label)}: ${segment.value}`}
                       onMouseEnter={(event) => showPortfolioHoverAtPointer(segment.label, event.clientX, event.clientY)}
                       onMouseMove={(event) => showPortfolioHoverAtPointer(segment.label, event.clientX, event.clientY)}
                       onMouseLeave={() => clearPortfolioHover()}
@@ -565,7 +561,7 @@ export default function Dashboard() {
                 onHoverEnd={() => clearPortfolioHover()}
               />
               <DashboardMetric
-                label="Overdue"
+                label="Delayed"
                 value={portfolioOverdueCount}
                 tone="red"
                 helper="Needs action"
@@ -631,7 +627,7 @@ export default function Dashboard() {
           style={{ left: `${portfolioHoverCardPosition.left}px`, top: `${portfolioHoverCardPosition.top}px` }}
         >
           <div className="portfolio-hover-header">
-            <span className="portfolio-hover-title">{portfolioHoverStatus}</span>
+            <span className="portfolio-hover-title">{getStatusDisplayLabel(portfolioHoverStatus)}</span>
             <strong>{activeStatusCount}</strong>
           </div>
           <div className="portfolio-hover-list">
@@ -658,7 +654,9 @@ export default function Dashboard() {
       <div className="dashboard-main-grid">
         <section className="dashboard-widget dashboard-widget-calendar" aria-label="Audit density">
           <div className="dashboard-widget-header">
-            <div aria-hidden="true" />
+            <div className="dashboard-widget-heading">
+              <span className="dashboard-widget-kicker">Audit Calendar</span>
+            </div>
             <Link to={currentCalendarPath} className="button button-secondary button-small">
               <ButtonLabel icon="calendar" label="Open calendar" />
             </Link>
@@ -678,7 +676,7 @@ export default function Dashboard() {
                     <span>{month.records.length}</span>
                   </div>
                   <div className="dashboard-month-status">
-                    <span>{month.records.filter((record) => getDashboardPlanStatus(record) === 'Overdue').length} overdue</span>
+                    <span>{month.records.filter((record) => getDashboardPlanStatus(record) === 'Overdue').length} delayed</span>
                     <span>{month.records.filter((record) => getDashboardPlanStatus(record) === 'Upcoming').length} upcoming</span>
                   </div>
                   <div className="dashboard-month-standards">
@@ -696,7 +694,9 @@ export default function Dashboard() {
 
         <section className="dashboard-widget dashboard-widget-timeline" aria-label="Upcoming timeline">
           <div className="dashboard-widget-header">
-            <div aria-hidden="true" />
+            <div className="dashboard-widget-heading">
+              <span className="dashboard-widget-kicker">Upcoming Audits</span>
+            </div>
             <Link to="/planning" className="button button-secondary button-small">
               <ButtonLabel icon="open" label="Planning board" />
             </Link>

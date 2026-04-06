@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { PageHeader, Panel } from '../../../components/ui'
 import { ButtonLabel } from '../../../components/icons'
 import { useAuditLibrary } from '../../shared/context/useAuditLibrary'
@@ -11,6 +11,7 @@ import PlanningRecordModal, { type PlanningEditorDraft } from '../components/Pla
 import { getDerivedPlanStatus, getMonthDateRange, getPlanningDepartmentOptions, getPlanningLegendEntries, planningMonthLabels } from '../services/planningUtils'
 import { updatePlanWithHistory } from '../services/planningFactory'
 import type { AuditPlanCompletionResult } from '../../../types/planning'
+import { getAuditReportPath } from '../../../data/navigation'
 
 type CalendarEditorState =
   | { mode: 'create'; defaultStartDate?: string }
@@ -19,7 +20,8 @@ type CalendarEditorState =
 const MONTH_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
 export default function YearCalendarPage() {
-  const { planningRecords, audits, createPlanRecord, deletePlanRecord, getPlanById, updatePlanRecord } = useAuditLibrary()
+  const navigate = useNavigate()
+  const { planningRecords, audits, createAuditFromPlan, createPlanRecord, deletePlanRecord, getAuditById, getPlanById, updatePlanRecord } = useAuditLibrary()
   const [searchParams, setSearchParams] = useSearchParams()
   const currentDate = new Date()
   const currentYear = currentDate.getFullYear()
@@ -173,6 +175,27 @@ export default function YearCalendarPage() {
     setHistoryRecordId((current) => (current === recordId ? null : current))
   }
 
+  function handleOpenReport(recordId: string) {
+    const record = getPlanById(recordId)
+
+    if (!record) {
+      return
+    }
+
+    const linkedAudit = record.linkedAuditId ? getAuditById(record.linkedAuditId) ?? null : null
+
+    if (linkedAudit) {
+      navigate(getAuditReportPath(linkedAudit))
+      return
+    }
+
+    const createdAudit = createAuditFromPlan(recordId)
+
+    if (createdAudit) {
+      navigate(getAuditReportPath(createdAudit))
+    }
+  }
+
   return (
     <div className="module-page planning-page">
       <PageHeader
@@ -244,6 +267,7 @@ export default function YearCalendarPage() {
             setEditorState({ mode: 'edit', recordId })
           }}
           onCompleteRecord={(recordId) => setCompletionRecordId(recordId)}
+          onOpenReport={handleOpenReport}
         />
       </Panel>
 

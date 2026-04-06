@@ -13,6 +13,7 @@ import PlanningReportsPage from './features/planning/pages/PlanningReportsPage'
 import PlanningChecklistPage from './features/planning/pages/PlanningChecklistPage'
 import GenericAuditActionPlanPage from './features/generic/pages/ActionPlanPage'
 import GenericAuditInfoPage from './features/generic/pages/AuditInfoPage'
+import GenericAuditReportPage from './features/generic/pages/ReportPage'
 import Vda63AuditInfoPage from './features/vda63/pages/AuditInfoPage'
 import Vda63ChapterPage from './features/vda63/pages/ChapterPage'
 import Vda63SummaryPage from './features/vda63/pages/SummaryPage'
@@ -56,6 +57,7 @@ function App() {
             <Route path="audits/:auditId/vda65/action-plan" element={<Vda65ActionPlanPage />} />
             <Route path="audits/:auditId/vda65/report" element={<Vda65ReportPreviewPage />} />
             <Route path="audits/:auditId/:auditType/action-plan" element={<GenericAuditActionPlanPage />} />
+            <Route path="audits/:auditId/:auditType/report" element={<GenericAuditReportPage />} />
             <Route path="audits/:auditId/:auditType" element={<GenericAuditInfoPage />} />
             <Route path="vda63" element={<Navigate to="/audits" replace />} />
             <Route path="vda65" element={<Navigate to="/audits" replace />} />

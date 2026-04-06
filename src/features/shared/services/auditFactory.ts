@@ -9,7 +9,9 @@ import type {
   AuditInfo,
   AuditRecord,
   AuditType,
+  GenericAuditReportItem,
   GenericAuditRecord,
+  NonconformityType,
   ProductInfo,
   Vda63AuditRecord,
   Vda63QuestionResponse,
@@ -54,6 +56,51 @@ function createBlankAuditInfo(base?: Partial<AuditInfo>): AuditInfo {
     scope: '',
     notes: '',
   }
+}
+
+function createBlankGenericReportItem(base?: Partial<GenericAuditReportItem>): GenericAuditReportItem {
+  const clonedBase = clone(base ?? {})
+
+  return {
+    nonconformityType: 'Minor nonconformity',
+    processArea: '',
+    clause: '',
+    title: '',
+    requirement: '',
+    evidence: '',
+    statement: '',
+    recommendation: '',
+    ...clonedBase,
+    id: clonedBase.id ?? createId(),
+  }
+}
+
+function createBlankActionPlanItem(auditType: AuditType, base?: Partial<ActionPlanItem>): ActionPlanItem {
+  const clonedBase = clone(base ?? {})
+
+  return {
+    processArea: '',
+    clause: '',
+    nonconformityType: 'Minor nonconformity' as NonconformityType,
+    section: '',
+    finding: '',
+    action: '',
+    owner: '',
+    dueDate: '',
+    status: 'Open',
+    comment: '',
+    ...clonedBase,
+    id: clonedBase.id ?? createId(),
+    auditType,
+  }
+}
+
+function normalizeGenericReportItems(items: GenericAuditReportItem[] | undefined) {
+  return (items ?? []).map((item) => createBlankGenericReportItem(item))
+}
+
+function normalizeActionPlanItems(items: ActionPlanItem[] | undefined, auditType: AuditType) {
+  return (items ?? []).map((item) => createBlankActionPlanItem(auditType, item))
 }
 
 function createBlankVda63Responses() {
@@ -127,7 +174,14 @@ function createBlankProductInfo(base: ProductInfo): ProductInfo {
 
 function withActionIds(items: ActionPlanItem[]) {
   return items.map((item) => ({
-    ...clone(item),
+    ...createBlankActionPlanItem(item.auditType, item),
+    id: createId(),
+  }))
+}
+
+function withReportItemIds(items: GenericAuditReportItem[]) {
+  return items.map((item) => ({
+    ...createBlankGenericReportItem(item),
     id: createId(),
   }))
 }
@@ -139,6 +193,7 @@ export function normalizeAuditRecordShape(record: AuditRecord): AuditRecord {
     return {
       ...record,
       standard,
+      planRecordId: record.planRecordId ?? null,
       data: {
         auditInfo: {
           ...createBlankAuditInfo(vda65AuditInfo),
@@ -157,11 +212,15 @@ export function normalizeAuditRecordShape(record: AuditRecord): AuditRecord {
     return {
       ...record,
       standard,
+      planRecordId: record.planRecordId ?? null,
+      actions: normalizeActionPlanItems(record.actions, record.auditType),
       data: {
         auditInfo: {
           ...createBlankAuditInfo(),
           ...record.data.auditInfo,
         },
+        reportSummary: (record.data as Partial<GenericAuditRecord['data']>).reportSummary ?? '',
+        reportItems: normalizeGenericReportItems((record.data as Partial<GenericAuditRecord['data']>).reportItems),
       },
     }
   }
@@ -182,6 +241,7 @@ export function normalizeAuditRecordShape(record: AuditRecord): AuditRecord {
   return {
     ...record,
     standard,
+    planRecordId: record.planRecordId ?? null,
     data: {
       auditInfo: record.data.auditInfo,
       responses:
@@ -203,6 +263,7 @@ export function createAuditRecord(auditType: AuditType): AuditRecord {
           id: createId(),
           auditType,
           standard: 'VDA 6.3',
+          planRecordId: null,
           title: createTitle(auditType),
           site: '',
           auditor: '',
@@ -224,6 +285,7 @@ export function createAuditRecord(auditType: AuditType): AuditRecord {
             id: createId(),
             auditType,
             standard: 'VDA 6.5',
+            planRecordId: null,
             title: createTitle(auditType),
             site: '',
             auditor: '',
@@ -243,6 +305,7 @@ export function createAuditRecord(auditType: AuditType): AuditRecord {
           id: createId(),
           auditType,
           standard: getAuditStandardLabel(auditType),
+          planRecordId: null,
           title: createTitle(auditType),
           site: '',
           auditor: '',
@@ -254,6 +317,8 @@ export function createAuditRecord(auditType: AuditType): AuditRecord {
           actions: [],
           data: {
             auditInfo: createBlankAuditInfo(),
+            reportSummary: '',
+            reportItems: [],
           },
         }
 
@@ -268,6 +333,7 @@ export function createSeedAuditRecords(): AuditRecord[] {
       id: createId(),
       auditType: 'vda63',
       standard: 'VDA 6.3',
+      planRecordId: null,
       title: 'North Alliance Process Readiness Audit',
       site: vda63AuditInfo.site,
       auditor: vda63AuditInfo.auditor,
@@ -288,6 +354,7 @@ export function createSeedAuditRecords(): AuditRecord[] {
       id: createId(),
       auditType: 'vda65',
       standard: 'VDA 6.5',
+      planRecordId: null,
       title: 'Sensor Control Module Product Audit',
       site: vda65AuditInfo.site,
       auditor: vda65AuditInfo.auditor,
@@ -315,6 +382,7 @@ export function duplicateAuditRecord(record: AuditRecord): AuditRecord {
       ? ({
           ...clone(record),
           id: createId(),
+          planRecordId: null,
           title: `${record.title} Copy`,
           createdAt: now,
           updatedAt: now,
@@ -330,6 +398,7 @@ export function duplicateAuditRecord(record: AuditRecord): AuditRecord {
         ? ({
           ...clone(record),
           id: createId(),
+          planRecordId: null,
           title: `${record.title} Copy`,
           createdAt: now,
           updatedAt: now,
@@ -343,12 +412,15 @@ export function duplicateAuditRecord(record: AuditRecord): AuditRecord {
         : ({
             ...clone(record),
             id: createId(),
+            planRecordId: null,
             title: `${record.title} Copy`,
             createdAt: now,
             updatedAt: now,
             actions: withActionIds(record.actions),
             data: {
               auditInfo: clone(record.data.auditInfo),
+              reportSummary: record.data.reportSummary ?? '',
+              reportItems: withReportItemIds(record.data.reportItems ?? []),
             },
           } satisfies GenericAuditRecord)
 
@@ -374,6 +446,7 @@ export function changeAuditRecordType(record: AuditRecord, targetType: AuditType
       return {
         ...baseRecord,
         id: record.id,
+        planRecordId: record.planRecordId ?? null,
         createdAt: record.createdAt,
         updatedAt: record.updatedAt,
         title: resolvedTitle,
@@ -395,6 +468,7 @@ export function changeAuditRecordType(record: AuditRecord, targetType: AuditType
       return {
         ...baseRecord,
         id: record.id,
+        planRecordId: record.planRecordId ?? null,
         createdAt: record.createdAt,
         updatedAt: record.updatedAt,
         title: resolvedTitle,
@@ -415,6 +489,7 @@ export function changeAuditRecordType(record: AuditRecord, targetType: AuditType
     return {
       ...baseRecord,
       id: record.id,
+      planRecordId: record.planRecordId ?? null,
       createdAt: record.createdAt,
       updatedAt: record.updatedAt,
       title: resolvedTitle,
@@ -424,6 +499,8 @@ export function changeAuditRecordType(record: AuditRecord, targetType: AuditType
         auditInfo: {
           ...sharedAuditInfo,
         },
+        reportSummary: record.auditType === 'vda63' || record.auditType === 'vda65' ? '' : record.data.reportSummary,
+        reportItems: record.auditType === 'vda63' || record.auditType === 'vda65' ? [] : normalizeGenericReportItems(record.data.reportItems),
       },
     } satisfies GenericAuditRecord
   })()

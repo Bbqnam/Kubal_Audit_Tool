@@ -78,6 +78,7 @@ export function AuditWorkspaceProvider({ children }: { children: React.ReactNode
           baseRecord.auditType === 'vda63'
             ? {
                 ...baseRecord,
+                planRecordId: plan.id,
                 standard: plan.standard,
                 title: plan.title,
                 site: plan.site,
@@ -101,6 +102,7 @@ export function AuditWorkspaceProvider({ children }: { children: React.ReactNode
             : baseRecord.auditType === 'vda65'
               ? {
                 ...baseRecord,
+                planRecordId: plan.id,
                 standard: plan.standard,
                 title: plan.title,
                 site: plan.site,
@@ -123,12 +125,14 @@ export function AuditWorkspaceProvider({ children }: { children: React.ReactNode
               }
               : {
                   ...baseRecord,
+                  planRecordId: plan.id,
                   standard: plan.standard,
                   title: plan.title,
                   site: plan.site,
                   auditor: plan.owner,
                   auditDate: plan.plannedStart,
                   data: {
+                    ...baseRecord.data,
                     auditInfo: {
                       ...baseRecord.data.auditInfo,
                       site: plan.site,
@@ -203,6 +207,21 @@ export function AuditWorkspaceProvider({ children }: { children: React.ReactNode
       deleteAudit: (id) => {
         setSaveState('Saving')
         setAudits((current) => current.filter((audit) => audit.id !== id))
+        setPlanningRecords((current) =>
+          current.map((record) =>
+            record.linkedAuditId === id
+              ? updatePlanWithHistory(
+                  record,
+                  {
+                    linkedAuditId: null,
+                    status: record.status === 'Completed' ? record.status : 'Planned',
+                  },
+                  'Edited',
+                  'Linked audit removed from workspace.',
+                )
+              : record,
+          ),
+        )
       },
       deletePlanRecord: (id) => {
         setSaveState('Saving')

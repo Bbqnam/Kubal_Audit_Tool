@@ -42,6 +42,7 @@ export type Vda65ScoreBand = 'Very Good (OK)' | 'Good (OK)' | 'Satisfactory (OK)
 export type Vda65AuditDecision = 'Not started' | 'In progress' | 'OK' | 'Audit Failed'
 
 export type ActionPlanStatus = 'Open' | 'In progress' | 'Closed'
+export type NonconformityType = 'Major nonconformity' | 'Minor nonconformity' | 'Observation' | 'Improvement suggestion'
 
 export type AuditLifecycleStatus = 'Not started' | 'In progress' | 'Completed'
 
@@ -113,6 +114,9 @@ export type Vda65ChecklistItem = {
 export type ActionPlanItem = {
   id: string
   auditType: AuditType
+  processArea?: string
+  clause?: string
+  nonconformityType?: NonconformityType
   section: string
   finding: string
   action: string
@@ -120,6 +124,18 @@ export type ActionPlanItem = {
   dueDate: string
   status: ActionPlanStatus
   comment: string
+}
+
+export type GenericAuditReportItem = {
+  id: string
+  nonconformityType: NonconformityType
+  processArea: string
+  clause: string
+  title: string
+  requirement: string
+  evidence: string
+  statement: string
+  recommendation: string
 }
 
 export type AppNavItem = {
@@ -207,12 +223,15 @@ export type Vda65AuditData = {
 
 export type GenericAuditData = {
   auditInfo: AuditInfo
+  reportSummary: string
+  reportItems: GenericAuditReportItem[]
 }
 
 export type AuditRecordBase = {
   id: string
   auditType: AuditType
   standard: string
+  planRecordId: string | null
   title: string
   site: string
   auditor: string

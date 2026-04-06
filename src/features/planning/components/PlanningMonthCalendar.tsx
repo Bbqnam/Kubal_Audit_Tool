@@ -5,6 +5,7 @@ import {
   buildPlanningCalendarWeeks,
   getDerivedPlanStatus,
   getPlanColorClass,
+  getPlanExecutionAuditType,
   getPlanWindowLabel,
   getStatusAccentClass,
   planningWeekdayLabels,
@@ -18,6 +19,7 @@ export default function PlanningMonthCalendar({
   onSelectDay,
   onSelectRecord,
   onCompleteRecord,
+  onOpenReport,
 }: {
   records: AuditPlanRecord[]
   year: number
@@ -26,6 +28,7 @@ export default function PlanningMonthCalendar({
   onSelectDay: (date: string) => void
   onSelectRecord: (recordId: string) => void
   onCompleteRecord?: (recordId: string) => void
+  onOpenReport?: (recordId: string) => void
 }) {
   const weeks = buildPlanningCalendarWeeks(records, year, month)
 
@@ -68,7 +71,7 @@ export default function PlanningMonthCalendar({
                 <div className="planning-day-cell-events">
                   {day.records.slice(0, 4).map((record) => {
                     const status = getDerivedPlanStatus(record)
-
+                    const canOpenReport = !!onOpenReport && (Boolean(record.linkedAuditId) || Boolean(getPlanExecutionAuditType(record)))
                     const canComplete = status !== 'Completed' && status !== 'Cancelled' && !!onCompleteRecord
 
                     return (
@@ -97,6 +100,18 @@ export default function PlanningMonthCalendar({
                         <span>{getPlanWindowLabel(record)}</span>
                         {canComplete ? (
                           <div className="planning-calendar-event-actions">
+                            {canOpenReport ? (
+                              <button
+                                type="button"
+                                className="planning-calendar-event-action"
+                                onClick={(event) => {
+                                  event.stopPropagation()
+                                  onOpenReport(record.id)
+                                }}
+                              >
+                                <ButtonLabel icon={record.linkedAuditId ? 'open' : 'add'} label={record.linkedAuditId ? 'Open report' : 'Create report'} />
+                              </button>
+                            ) : null}
                             <button
                               type="button"
                               className="planning-calendar-event-complete"
@@ -106,6 +121,19 @@ export default function PlanningMonthCalendar({
                               }}
                             >
                               <ButtonLabel icon="complete" label="Mark completed" />
+                            </button>
+                          </div>
+                        ) : canOpenReport ? (
+                          <div className="planning-calendar-event-actions">
+                            <button
+                              type="button"
+                              className="planning-calendar-event-action"
+                              onClick={(event) => {
+                                event.stopPropagation()
+                                onOpenReport(record.id)
+                              }}
+                            >
+                              <ButtonLabel icon={record.linkedAuditId ? 'open' : 'add'} label={record.linkedAuditId ? 'Open report' : 'Create report'} />
                             </button>
                           </div>
                         ) : null}

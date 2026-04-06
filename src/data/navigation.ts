@@ -33,6 +33,7 @@ const vda65SectionNavigation = [
 
 const genericSectionNavigation = [
   { label: 'Audit Info', segment: '' },
+  { label: 'Audit Report', segment: 'report' },
   { label: 'Action Plan', segment: 'action-plan' },
 ]
 
@@ -56,6 +57,10 @@ export function getAuditSectionPath(auditId: string, auditType: AuditType, secti
 
 export function getAuditRecordHomePath(record: Pick<AuditRecord, 'id' | 'auditType'>) {
   return getAuditRootPath(record.id, record.auditType)
+}
+
+export function getAuditReportPath(record: Pick<AuditRecord, 'id' | 'auditType'>) {
+  return getAuditSectionPath(record.id, record.auditType, 'report')
 }
 
 export function getPlanningCalendarPath({

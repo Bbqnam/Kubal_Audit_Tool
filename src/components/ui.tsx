@@ -140,8 +140,12 @@ export function DashboardCard({
   )
 }
 
+export function getStatusDisplayLabel(value: string) {
+  return value === 'Overdue' ? 'Delayed' : value
+}
+
 export function StatusBadge({ value }: { value: string }) {
-  return <span className={`status-badge status-${value.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`}>{value}</span>
+  return <span className={`status-badge status-${value.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`}>{getStatusDisplayLabel(value)}</span>
 }
 
 export function StatusLegend({

@@ -1,23 +1,75 @@
 import { useNavigate } from 'react-router-dom'
+import { ButtonLabel } from '../../../components/icons'
 import ExportCenter from '../../../components/ExportCenter'
 import { DetailList, Field, MetricCard, PageHeader, Panel } from '../../../components/ui'
-import { auditTemplateSelectionTypes, getAuditTitleLabel, getAuditTypeFamilyLabel, getAuditTypeLabel, getAuditWorkspaceKind } from '../../../data/auditTypes'
-import { getAuditRecordHomePath } from '../../../data/navigation'
+import { getAuditTitleLabel, getAuditTypeFamilyLabel, getAuditTypeLabel, getAuditWorkspaceKind } from '../../../data/auditTypes'
+import { getAuditRecordHomePath, getAuditSectionPath, getPlanningCalendarPath } from '../../../data/navigation'
 import { useGenericAuditWorkspace } from '../../shared/context/useGenericAuditWorkspace'
-import type { AuditType } from '../../../types/audit'
+import { sharedAuditTemplateOptions } from '../data/nonconformityTemplate'
 
 export default function GenericAuditInfoPage() {
   const navigate = useNavigate()
-  const { audit, genericAuditInfo, updateAuditInfo, updateAuditStandard, updateAuditTitle, actionPlanItems, changeAuditType } = useGenericAuditWorkspace()
+  const {
+    audit,
+    genericAuditInfo,
+    updateAuditInfo,
+    updateAuditStandard,
+    updateAuditTitle,
+    updateAuditRecord,
+    changeAuditType,
+    getPlanById,
+    actionPlanItems,
+  } = useGenericAuditWorkspace()
   const auditTypeLabel = getAuditTypeLabel(audit.auditType)
-  const workflowLabel = getAuditWorkspaceKind(audit.auditType) === 'generic' ? 'Shared template' : 'Dedicated template'
+  const selectedTemplateOption = sharedAuditTemplateOptions.find((option) => option.standard === audit.standard)
+  const workflowLabel = selectedTemplateOption?.workflowLabel ?? (getAuditWorkspaceKind(audit.auditType) === 'generic' ? 'Shared report template' : 'Dedicated template')
+  const linkedPlanRecord = audit.planRecordId ? getPlanById(audit.planRecordId) ?? null : null
+  const templateStandardOptions = [...new Set(sharedAuditTemplateOptions.map((option) => option.standard))]
 
-  function handleChangeTemplate(nextAuditType: string) {
-    const updatedAudit = changeAuditType(audit.id, nextAuditType as AuditType)
-
-    if (updatedAudit) {
-      navigate(getAuditRecordHomePath(updatedAudit))
+  function handleChangeTemplate(nextStandard: string) {
+    if (!nextStandard) {
+      updateAuditStandard('')
+      return
     }
+
+    const templateOption = sharedAuditTemplateOptions.find((option) => option.standard === nextStandard)
+
+    updateAuditStandard(nextStandard)
+
+    if (!audit.title.trim() || audit.title === getAuditTitleLabel(audit.auditType) || audit.title === 'Audit Report' || sharedAuditTemplateOptions.some((option) => option.suggestedTitle === audit.title)) {
+      updateAuditTitle(templateOption?.suggestedTitle ?? 'Audit Report')
+    }
+  }
+
+  function handleContinueTemplate() {
+    const templateOption = selectedTemplateOption
+
+    if (!templateOption) {
+      navigate(getAuditSectionPath(audit.id, audit.auditType, 'report'))
+      return
+    }
+
+    let nextRecord = audit
+
+    if (templateOption.auditType !== audit.auditType) {
+      const changedRecord = changeAuditType(audit.id, templateOption.auditType)
+
+      if (changedRecord) {
+        nextRecord = changedRecord
+      }
+    }
+
+    updateAuditRecord(nextRecord.id, (current) => ({
+      ...current,
+      standard: templateOption.standard,
+    }))
+
+    if (nextRecord.auditType === 'vda63' || nextRecord.auditType === 'vda65') {
+      navigate(getAuditRecordHomePath(nextRecord))
+      return
+    }
+
+    navigate(getAuditSectionPath(nextRecord.id, nextRecord.auditType, 'report'))
   }
 
   return (
@@ -30,19 +82,28 @@ export default function GenericAuditInfoPage() {
       />
 
       <div className="metrics-grid">
-        <MetricCard label="Template" value={auditTypeLabel} />
+        <MetricCard label="Template" value={selectedTemplateOption?.label ?? auditTypeLabel} />
         <MetricCard label="Status" value={genericAuditInfo.auditStatus} tone={genericAuditInfo.auditStatus === 'Completed' ? 'success' : genericAuditInfo.auditStatus === 'In progress' ? 'warning' : 'default'} />
         <MetricCard label="Action items" value={actionPlanItems.length} tone={actionPlanItems.length ? 'warning' : 'default'} />
       </div>
 
       <div className="form-grid">
-        <Panel title="Template selection" description="Choose the audit type first, then continue in the matching workflow.">
+        <Panel
+          title="Template selection"
+          description="Choose the standard or programme template first, then continue into the matching audit workflow when you are ready."
+          actions={
+            <button type="button" className="button button-primary" onClick={handleContinueTemplate} disabled={!audit.standard.trim()}>
+              <ButtonLabel icon="next" label={selectedTemplateOption?.auditType === 'vda63' || selectedTemplateOption?.auditType === 'vda65' ? 'Open template' : 'Next: audit report'} />
+            </button>
+          }
+        >
           <div className="input-grid">
             <Field label="Audit template">
-              <select value={audit.auditType} onChange={(event) => handleChangeTemplate(event.target.value)}>
-                {auditTemplateSelectionTypes.map((auditType) => (
-                  <option key={auditType} value={auditType}>
-                    {getAuditTitleLabel(auditType)}
+              <select value={audit.standard} onChange={(event) => handleChangeTemplate(event.target.value)}>
+                <option value="">Select audit template</option>
+                {sharedAuditTemplateOptions.map((option) => (
+                  <option key={option.id} value={option.standard}>
+                    {option.label}
                   </option>
                 ))}
               </select>
@@ -59,7 +120,19 @@ export default function GenericAuditInfoPage() {
               <input value={audit.title} onChange={(event) => updateAuditTitle(event.target.value)} />
             </Field>
             <Field label="Standard">
-              <input value={audit.standard} onChange={(event) => updateAuditStandard(event.target.value)} placeholder="ISO 9001, EcoVadis, local programme..." />
+              <>
+                <input
+                  list="generic-standard-options"
+                  value={audit.standard}
+                  onChange={(event) => updateAuditStandard(event.target.value)}
+                  placeholder="ISO 9001, ISO 14001, IATF 16949, EcoVadis..."
+                />
+                <datalist id="generic-standard-options">
+                  {templateStandardOptions.map((standard) => (
+                    <option key={standard} value={standard} />
+                  ))}
+                </datalist>
+              </>
             </Field>
             <Field label="Audit status">
               <select value={genericAuditInfo.auditStatus} onChange={(event) => updateAuditInfo('auditStatus', event.target.value)}>
@@ -95,13 +168,29 @@ export default function GenericAuditInfoPage() {
           </div>
         </Panel>
 
-        <Panel title="Workflow" description="The shared template stays the working container until a dedicated format is selected.">
+        <Panel
+          title="Workflow"
+          description="The selected template can stay traceable to a planned audit when it was created from the calendar."
+          actions={
+            linkedPlanRecord ? (
+              <button
+                type="button"
+                className="button button-secondary button-small"
+                onClick={() => navigate(getPlanningCalendarPath({ month: linkedPlanRecord.month, recordId: linkedPlanRecord.id }))}
+              >
+                <ButtonLabel icon="calendar" label="Open calendar entry" />
+              </button>
+            ) : null
+          }
+        >
           <DetailList
             items={[
               { label: 'Selected template', value: auditTypeLabel },
+              { label: 'Template standard', value: selectedTemplateOption?.label ?? audit.standard ?? 'Choose a template above' },
               { label: 'Audit family', value: getAuditTypeFamilyLabel(audit.auditType) },
               { label: 'Standard', value: audit.standard || 'Add the applicable standard or programme above' },
-              { label: 'Next step', value: audit.auditType === 'template' ? 'Choose an audit template above to continue with the right workflow' : 'Complete audit details, then continue in the selected workflow' },
+              { label: 'Planning link', value: linkedPlanRecord ? `${linkedPlanRecord.title} · ${linkedPlanRecord.plannedStart}` : 'Not linked to a planning record yet' },
+              { label: 'Next step', value: selectedTemplateOption?.auditType === 'vda63' || selectedTemplateOption?.auditType === 'vda65' ? 'Use Open template to move into the dedicated VDA workflow.' : 'Use the Next button above to continue into Audit Report and Action Plan.' },
             ]}
           />
         </Panel>
