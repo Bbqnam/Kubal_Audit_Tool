@@ -1,17 +1,14 @@
 import { useRef, useState, type ChangeEvent } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import ExportCenter from '../components/ExportCenter'
-import MetadataSection from '../components/MetadataSection'
 import { getAuditRecordHomePath } from '../data/navigation'
 import { auditStatusFilterOptions } from '../config/domain/statuses'
 import { useAuditLibrary } from '../features/shared/context/useAuditLibrary'
 import { isActionItemDelayed } from '../features/shared/services/auditWorkflow'
 import { parseImportFile } from '../features/shared/services/fileTransfer'
 import type { AuditRecord } from '../types/audit'
-import { formatAuditType } from '../utils/auditUtils'
 import { formatDate, formatDateTime } from '../utils/dateUtils'
 import { exportAuditToExcel, exportAuditToPdf } from '../utils/exportUtils'
-import { getAuditMetadataItems } from '../utils/traceability'
 import { AuditTypeBadge, MetricCard, PageHeader, Panel, StatusBadge } from '../components/ui'
 import { ButtonLabel } from '../components/icons'
 
@@ -215,17 +212,19 @@ export default function AuditsPage() {
               {filteredAudits.map((audit) => (
                 <tr key={audit.id}>
                   <td>
-                    <div className="planning-table-title">
-                      <strong>{audit.title}</strong>
+                    <div className="planning-table-title audit-library-primary">
+                      <button type="button" className="dashboard-table-link audit-library-link" onClick={() => handleOpenAudit(audit)}>
+                        {audit.title}
+                      </button>
                       <span>{audit.summary.resultPreview ?? `${audit.summary.progressPercent}% complete`}</span>
                     </div>
-                    <MetadataSection items={getAuditMetadataItems(audit)} compact />
                   </td>
                   <td>
-                    <div className="audit-type-stack">
-                      <AuditTypeBadge auditType={audit.auditType} label={formatAuditType(audit.auditType)} size="small" />
-                      <span className="audit-type-subtext">{audit.standard || 'Standard not set'}</span>
-                    </div>
+                    <AuditTypeBadge
+                      auditType={audit.auditType}
+                      label={audit.standard || 'Standard not set'}
+                      size="small"
+                    />
                   </td>
                   <td>{audit.site || 'Unassigned'}</td>
                   <td>{audit.auditor || 'Unassigned'}</td>
@@ -269,7 +268,7 @@ export default function AuditsPage() {
                       </button>
                       <button
                         type="button"
-                        className="button button-secondary button-small button-danger button-icon-only"
+                        className="button button-danger button-small button-icon-only"
                         onClick={() => handleDeleteAudit(audit.id, audit.title)}
                         aria-label={`Delete ${audit.title}`}
                         title="Delete audit"

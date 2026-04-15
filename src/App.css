@@ -1021,6 +1021,68 @@
   color: var(--accent-strong);
 }
 
+.audit-library-primary {
+  gap: 0.32rem;
+}
+
+.audit-library-link {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  font-size: 0.98rem;
+}
+
+.audit-library-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.32rem 0.55rem;
+  margin-top: 0.38rem;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.audit-library-meta span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.audit-library-meta span:not(:last-child)::after {
+  content: '·';
+  color: rgba(88, 109, 135, 0.7);
+}
+
+.audit-library-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem 0.7rem;
+}
+
+.audit-library-action {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--muted-strong);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: color var(--transition-base);
+}
+
+.audit-library-action:hover {
+  color: var(--accent-strong);
+}
+
+.audit-library-action-danger {
+  color: rgba(177, 72, 49, 0.9);
+}
+
+.audit-library-action-danger:hover {
+  color: rgba(147, 43, 22, 0.96);
+}
+
 .audit-guidance-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -7430,6 +7492,11 @@
   margin: 0.7rem 0 0;
   font-size: 0.82rem;
   color: var(--muted);
+}
+
+.metadata-list-compact + .metadata-note {
+  margin-top: 0.45rem;
+  font-size: 0.74rem;
 }
 
 .activity-log-list {
