@@ -48,6 +48,8 @@ export type NonconformityType = 'Major nonconformity' | 'Minor nonconformity' | 
 
 export type AuditLifecycleStatus = 'Not started' | 'In progress' | 'Completed'
 
+export type AuditHistoryActionType = 'created' | 'updated' | 'status change' | 'action added' | 'action updated'
+
 export type AuditInfo = {
   site: string
   auditor: string
@@ -234,6 +236,14 @@ export type ExportDescriptor = {
   message: string
 }
 
+export type AuditHistoryEntry = {
+  id: string
+  timestamp: string
+  actionType: AuditHistoryActionType
+  description: string
+  actor: string
+}
+
 export type AuditSummaryPreview = {
   progressPercent: number
   scorePreview?: string
@@ -261,19 +271,26 @@ export type GenericAuditData = {
 
 export type AuditRecordBase = {
   id: string
+  auditId: string
   legacyIds?: string[]
   auditType: AuditType
   standard: string
   planRecordId: string | null
   title: string
+  owner: string
+  reviewer: string
+  approver: string
   site: string
   auditor: string
   auditDate: string
   status: AuditLifecycleStatus
   createdAt: string
   updatedAt: string
+  updatedBy: string
+  lastModifiedBy: string
   summary: AuditSummaryPreview
   actions: ActionPlanItem[]
+  history: AuditHistoryEntry[]
 }
 
 export type Vda63AuditRecord = AuditRecordBase & {

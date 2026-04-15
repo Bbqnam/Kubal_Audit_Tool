@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { PageHeader, Panel } from '../../../components/ui'
 import { ButtonLabel } from '../../../components/icons'
+import { planningStatusFilterOptions } from '../../../config/domain/statuses'
 import { useAuditLibrary } from '../../shared/context/useAuditLibrary'
 import { auditPlanningStandardOptions } from '../data/planningSeed'
 import PlanningMonthCalendar from '../components/PlanningMonthCalendar'
@@ -10,7 +11,7 @@ import PlanningHistoryModal from '../components/PlanningHistoryModal'
 import PlanningRecordModal, { type PlanningEditorDraft } from '../components/PlanningRecordModal'
 import { getDerivedPlanStatus, getMonthDateRange, getPlanningDepartmentOptions, getPlanningLegendEntries, planningMonthLabels } from '../services/planningUtils'
 import { updatePlanWithHistory } from '../services/planningFactory'
-import type { AuditPlanCompletionResult } from '../../../types/planning'
+import type { AuditPlanCompletionResult, AuditPlanRecord } from '../../../types/planning'
 import { getAuditReportPath } from '../../../data/navigation'
 
 type CalendarEditorState =
@@ -29,6 +30,23 @@ function parseRequestedMonth(value: string | null, fallbackMonth: number) {
   return parsedValue >= 1 && parsedValue <= 12 ? Math.trunc(parsedValue) : fallbackMonth
 }
 
+function startOfDay(date: Date) {
+  const clone = new Date(date)
+  clone.setHours(0, 0, 0, 0)
+  return clone
+}
+
+function getCalendarDashboardStatus(record: AuditPlanRecord, referenceDate = new Date()) {
+  const derivedStatus = getDerivedPlanStatus(record, referenceDate)
+
+  if (derivedStatus === 'Completed' || derivedStatus === 'In progress' || derivedStatus === 'Overdue' || derivedStatus === 'Cancelled') {
+    return derivedStatus
+  }
+
+  const startsInDays = Math.round((startOfDay(new Date(record.plannedStart)).getTime() - startOfDay(referenceDate).getTime()) / 86_400_000)
+  return startsInDays <= 30 ? 'Upcoming' : 'Planned'
+}
+
 export default function YearCalendarPage() {
   const navigate = useNavigate()
   const { planningRecords, audits, createAuditFromPlan, createPlanRecord, deletePlanRecord, getAuditById, getPlanById, updatePlanRecord } = useAuditLibrary()
@@ -36,6 +54,7 @@ export default function YearCalendarPage() {
   const currentDate = new Date()
   const currentYear = currentDate.getFullYear()
   const resolvedMonth = parseRequestedMonth(searchParams.get('month'), currentDate.getMonth() + 1)
+  const statusFilter = searchParams.get('status') ?? 'all'
   const [editorState, setEditorState] = useState<CalendarEditorState | null>(null)
   const [completionRecordId, setCompletionRecordId] = useState<string | null>(null)
   const [historyRecordId, setHistoryRecordId] = useState<string | null>(null)
@@ -47,6 +66,7 @@ export default function YearCalendarPage() {
   const { firstDay: selectedMonthStart, lastDay: selectedMonthEnd } = getMonthDateRange(selectedYear, selectedMonth)
   const selectedMonthRecords = planningRecords
     .filter((record) => record.plannedStart <= selectedMonthEnd.toISOString().slice(0, 10) && record.plannedEnd >= selectedMonthStart.toISOString().slice(0, 10))
+    .filter((record) => (statusFilter === 'all' ? true : getCalendarDashboardStatus(record, currentDate) === statusFilter))
     .sort((left, right) => left.plannedStart.localeCompare(right.plannedStart) || left.title.localeCompare(right.title))
   const visibleLegendEntries = getPlanningLegendEntries(selectedMonthRecords)
   const firstActionablePlan = selectedMonthRecords.find((record) => {
@@ -211,6 +231,19 @@ export default function YearCalendarPage() {
         eyebrow="Audit planning"
         actions={
           <div className="section-header-actions">
+            {statusFilter !== 'all' ? (
+              <button
+                type="button"
+                className="button button-secondary"
+                onClick={() => {
+                  const nextParams = new URLSearchParams(searchParams)
+                  nextParams.delete('status')
+                  setSearchParams(nextParams, { replace: true })
+                }}
+              >
+                <ButtonLabel icon="close" label={`Clear ${planningStatusFilterOptions.find((option) => option.value === statusFilter)?.label ?? 'filter'}`} />
+              </button>
+            ) : null}
             <button type="button" className="button button-secondary" onClick={() => setEditorState({ mode: 'create', defaultStartDate: buildMonthStartDate() })}>
               <ButtonLabel icon="add" label="Quick create" />
             </button>

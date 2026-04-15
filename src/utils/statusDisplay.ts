@@ -1,3 +1,5 @@
+import { getDomainStatusLabel } from '../config/domain/statuses'
+
 export function getStatusDisplayLabel(value: string) {
-  return value === 'Overdue' ? 'Delayed' : value
+  return getDomainStatusLabel(value)
 }

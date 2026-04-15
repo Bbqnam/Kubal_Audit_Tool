@@ -2,8 +2,11 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useState, type FocusEvent as ReactFocusEvent, type MouseEvent as ReactMouseEvent } from 'react'
 import { AuditTypeBadge, PageHeader, StatusBadge } from '../components/ui'
 import { ButtonLabel } from '../components/icons'
+import { dashboardStatusColors } from '../config/domain/colors'
+import { getStandardToneKey } from '../config/domain/standards'
 import { getAuditRecordHomePath, getPlanningCalendarPath } from '../data/navigation'
 import { getAuditTypeLabel } from '../features/shared/services/auditSummary'
+import { isActionItemDelayed, summarizeOpenActionItems } from '../features/shared/services/auditWorkflow'
 import { getAuditTypeFamilyLabel, getAuditWorkspaceKind } from '../data/auditTypes'
 import { useAuditLibrary } from '../features/shared/context/useAuditLibrary'
 import {
@@ -48,11 +51,7 @@ function getDashboardPlanStatus(record: AuditPlanRecord, referenceDate = new Dat
 }
 
 function getAuditDashboardStatus(record: AuditRecord) {
-  if (record.status === 'Completed') {
-    return 'Completed'
-  }
-
-  return record.summary.progressPercent === 0 ? 'Not evaluated' : 'In progress'
+  return record.status
 }
 
 function getActionPlanPath(record: AuditRecord) {
@@ -72,26 +71,6 @@ function getPlanningLink(record: AuditPlanRecord, audits: AuditRecord[]) {
     year: record.year,
     month: record.month,
   })
-}
-
-function getStandardTone(standard: string) {
-  switch (standard) {
-    case 'VDA 6.3':
-      return 'vda63'
-    case 'VDA 6.5':
-      return 'vda65'
-    case 'ISO 9001':
-    case 'ISO 14001':
-      return 'iso'
-    case 'ASI':
-      return 'asi'
-    case 'EcoVadis':
-      return 'ecovadis'
-    case 'IATF 16949':
-      return 'iatf'
-    default:
-      return 'neutral'
-  }
 }
 
 function getMonthDensityLevel(count: number, maxCount: number) {
@@ -186,6 +165,7 @@ function DashboardMetric({
   onHoverStart,
   onHoverMove,
   onHoverEnd,
+  onClick,
 }: {
   label: string
   value: string | number
@@ -195,14 +175,16 @@ function DashboardMetric({
   onHoverStart?: (event: ReactMouseEvent<HTMLButtonElement> | ReactFocusEvent<HTMLButtonElement>) => void
   onHoverMove?: (event: ReactMouseEvent<HTMLButtonElement>) => void
   onHoverEnd?: () => void
+  onClick?: () => void
 }) {
   const className = `dashboard-kpi dashboard-kpi-${tone} ${active ? 'dashboard-kpi-active' : ''}`.trim()
 
-  if (onHoverStart || onHoverMove || onHoverEnd) {
+  if (onHoverStart || onHoverMove || onHoverEnd || onClick) {
     return (
       <button
         type="button"
         className={className}
+        onClick={onClick}
         onMouseEnter={(event) => onHoverStart?.(event)}
         onMouseMove={(event) => onHoverMove?.(event)}
         onMouseLeave={() => onHoverEnd?.()}
@@ -270,7 +252,7 @@ export default function Dashboard() {
         .map((action) => ({
           audit,
           action,
-          overdue: !!action.dueDate && getDaysUntil(action.dueDate) < 0,
+          overdue: isActionItemDelayed(action, currentDate),
         })),
     )
     .sort((left, right) => {
@@ -294,9 +276,13 @@ export default function Dashboard() {
 
       return right.audit.updatedAt.localeCompare(left.audit.updatedAt)
     })
-  const overdueActionCount = openActionRecords.filter(({ overdue }) => overdue).length
-  const inProgressActionCount = openActionRecords.filter(({ overdue, action }) => !overdue && action.status === 'In progress').length
-  const openActionCount = openActionRecords.filter(({ overdue, action }) => !overdue && action.status === 'Open').length
+  const actionFollowUp = summarizeOpenActionItems(
+    audits.flatMap((audit) => audit.actions),
+    currentDate,
+  )
+  const overdueActionCount = actionFollowUp.delayed
+  const inProgressActionCount = actionFollowUp.inProgress
+  const openActionCount = actionFollowUp.open
   const actionSummary = `${overdueActionCount} delayed · ${inProgressActionCount} in progress · ${openActionCount} open`
 
   const portfolioStandardsBreakdown = Object.entries(
@@ -319,16 +305,43 @@ export default function Dashboard() {
   })
 
   const portfolioStatusSegments: ChartSegment[] = [
-    { label: 'Completed', value: portfolioSummary.completed, color: '#35a56d' },
-    { label: 'In progress', value: portfolioSummary.inProgress, color: '#e58d2f' },
-    { label: 'Upcoming', value: portfolioUpcomingCount, color: '#d2a72a' },
-    { label: 'Planned', value: portfolioPlannedCount, color: '#3e78d5' },
-    { label: 'Overdue', value: portfolioOverdueCount, color: '#d34d43' },
+    { label: 'Completed', value: portfolioSummary.completed, color: dashboardStatusColors.Completed },
+    { label: 'In progress', value: portfolioSummary.inProgress, color: dashboardStatusColors['In progress'] },
+    { label: 'Upcoming', value: portfolioUpcomingCount, color: dashboardStatusColors.Upcoming },
+    { label: 'Planned', value: portfolioPlannedCount, color: dashboardStatusColors.Planned },
+    { label: 'Overdue', value: portfolioOverdueCount, color: dashboardStatusColors.Overdue },
   ]
 
   function handleCreateAudit(auditType: AuditType) {
     const newAudit = createAudit(auditType)
     navigate(getAuditRecordHomePath(newAudit))
+  }
+
+  function openAuditDrilldown(status?: string, followUp?: string) {
+    const params = new URLSearchParams()
+
+    if (status) {
+      params.set('status', status)
+    }
+
+    if (followUp) {
+      params.set('followUp', followUp)
+    }
+
+    navigate(`/audits${params.toString() ? `?${params.toString()}` : ''}`)
+  }
+
+  function openPlanningDrilldown(status?: string) {
+    const params = new URLSearchParams({
+      year: String(currentYear),
+      month: String(currentDate.getMonth() + 1),
+    })
+
+    if (status) {
+      params.set('status', status)
+    }
+
+    navigate(`/planning/calendar?${params.toString()}`)
   }
 
   const pulseFeaturedStandards = portfolioStandardBreakdownDetails.slice(0, 4)
@@ -420,7 +433,7 @@ export default function Dashboard() {
                 <div className="dashboard-pulse-heading-row">
                   <div className="dashboard-pulse-inline-badges" aria-label="Most common standards in this view">
                     {pulseFeaturedStandards.map(({ standard, count }) => (
-                      <span key={standard} className={`dashboard-standard-chip dashboard-standard-chip-inline dashboard-standard-${getStandardTone(standard)}`}>
+                      <span key={standard} className={`dashboard-standard-chip dashboard-standard-chip-inline dashboard-standard-${getStandardToneKey(standard)}`}>
                         <span>{standard}</span>
                         <strong>{count}</strong>
                       </span>
@@ -497,11 +510,12 @@ export default function Dashboard() {
               </div>
 
               <div className="dashboard-kpi-grid">
-                <DashboardMetric
+              <DashboardMetric
                 label="Completed"
                 value={portfolioSummary.completed}
                 tone="green"
                 helper="Closed"
+                onClick={() => openAuditDrilldown('Completed')}
                 active={portfolioHoverStatus === 'Completed'}
                 onHoverStart={(event) => {
                   if ('clientX' in event) {
@@ -518,6 +532,7 @@ export default function Dashboard() {
                 value={portfolioPlannedCount}
                 tone="blue"
                 helper="Later in year"
+                onClick={() => openPlanningDrilldown('Planned')}
                 active={portfolioHoverStatus === 'Planned'}
                 onHoverStart={(event) => {
                   if ('clientX' in event) {
@@ -534,6 +549,7 @@ export default function Dashboard() {
                 value={portfolioUpcomingCount}
                 tone="yellow"
                 helper="Next 30 days"
+                onClick={() => openPlanningDrilldown('Upcoming')}
                 active={portfolioHoverStatus === 'Upcoming'}
                 onHoverStart={(event) => {
                   if ('clientX' in event) {
@@ -550,6 +566,7 @@ export default function Dashboard() {
                 value={portfolioSummary.inProgress}
                 tone="orange"
                 helper="Underway"
+                onClick={() => openAuditDrilldown('In progress')}
                 active={portfolioHoverStatus === 'In progress'}
                 onHoverStart={(event) => {
                   if ('clientX' in event) {
@@ -566,6 +583,7 @@ export default function Dashboard() {
                 value={portfolioOverdueCount}
                 tone="red"
                 helper="Needs action"
+                onClick={() => openAuditDrilldown(undefined, 'delayed')}
                 active={portfolioHoverStatus === 'Overdue'}
                 onHoverStart={(event) => {
                   if ('clientX' in event) {
@@ -605,7 +623,7 @@ export default function Dashboard() {
                   <strong className="dashboard-action-finding">{action.finding}</strong>
                   <div className="dashboard-action-meta dashboard-action-meta-compact">
                     <p>{action.section} · {action.owner || 'Owner TBD'}</p>
-                    <span className={`dashboard-standard-chip dashboard-standard-${getStandardTone(audit.standard || getAuditTypeLabel(audit.auditType))}`}>
+                    <span className={`dashboard-standard-chip dashboard-standard-${getStandardToneKey(audit.standard || getAuditTypeLabel(audit.auditType))}`}>
                       {audit.standard || getAuditTypeLabel(audit.auditType)}
                     </span>
                   </div>
@@ -682,7 +700,7 @@ export default function Dashboard() {
                   </div>
                   <div className="dashboard-month-standards">
                     {monthStandards.length ? monthStandards.map((standard) => (
-                      <span key={standard} className={`dashboard-standard-chip dashboard-standard-${getStandardTone(standard)}`}>
+                      <span key={standard} className={`dashboard-standard-chip dashboard-standard-${getStandardToneKey(standard)}`}>
                         {standard}
                       </span>
                     )) : <span className="dashboard-empty-note">No audits</span>}
@@ -715,7 +733,12 @@ export default function Dashboard() {
                   <div className="dashboard-timeline-meta">
                     <span>{formatDate(record.plannedStart)}</span>
                     <span>{getPlanWindowLabel(record)}</span>
-                    <span className={`dashboard-standard-chip dashboard-standard-${getStandardTone(record.standard)}`}>{record.standard}</span>
+                    <span className={`dashboard-standard-chip dashboard-standard-${getStandardToneKey(record.standard)}`}>{record.standard}</span>
+                  </div>
+                  <div className="dashboard-timeline-trace">
+                    <span>{record.auditId}</span>
+                    <span>{record.updatedBy}</span>
+                    <span>{formatDate(record.updatedAt)}</span>
                   </div>
                 </div>
               </Link>
@@ -752,6 +775,11 @@ export default function Dashboard() {
                   <span>{getAuditTypeFamilyLabel(audit.auditType)}</span>
                   <span>{audit.site || 'Site TBD'}</span>
                   <DashboardMetaPill detail={`${formatDate(audit.updatedAt)} at ${formatTimeOnly(audit.updatedAt)}`} tone="slate" />
+                </div>
+                <div className="dashboard-audit-trace">
+                  <span>{audit.auditId}</span>
+                  <span>{audit.owner || 'Owner TBD'}</span>
+                  <span>{audit.updatedBy}</span>
                 </div>
                 <div className="dashboard-audit-progress">
                   <div className="dashboard-audit-progress-track">

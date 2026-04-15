@@ -5,6 +5,7 @@ import type {
   YearlyPlanningChecklistItem,
 } from '../../../types/planning'
 import { buildPlanHistoryEntry } from '../services/planningFactory'
+import { createAuditReferenceId, DEFAULT_PLANNING_ACTOR } from '../../../utils/traceability'
 
 type StandardSeedDefinition = {
   title: string
@@ -324,6 +325,8 @@ function getWorkbookWeekDate(year: number, week: number, edge: 'start' | 'end') 
 }
 
 export function createSeedPlanningRecords(): AuditPlanRecord[] {
+  const usedAuditIds = new Set<string>()
+
   return seedPlanSeries.flatMap((series) => {
     const seed = standardSeedMap[series.label]
 
@@ -332,9 +335,12 @@ export function createSeedPlanningRecords(): AuditPlanRecord[] {
       const plannedStart = getWorkbookWeekDate(series.year, startWeek, 'start')
       const plannedEnd = getWorkbookWeekDate(series.year, endWeek, 'end')
       const timestamp = `${plannedStart}T08:00:00.000Z`
+      const auditId = createAuditReferenceId(plannedStart, usedAuditIds)
+      usedAuditIds.add(auditId)
 
       return {
         id: `plan-${series.year}-${slugify(series.label)}-${String(index + 1).padStart(2, '0')}`,
+        auditId,
         title: seed.title,
         standard: seed.standard,
         auditType: seed.auditType,
@@ -358,6 +364,7 @@ export function createSeedPlanningRecords(): AuditPlanRecord[] {
         completionSummary: seededStatus === 'Completed' ? 'Completed according to imported calendar history.' : '',
         createdAt: timestamp,
         updatedAt: timestamp,
+        updatedBy: DEFAULT_PLANNING_ACTOR,
         changeHistory: [
           buildPlanHistoryEntry('Imported', `Imported from workbook planning row for ${series.year}.`, timestamp),
         ],

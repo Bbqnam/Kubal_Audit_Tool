@@ -39,6 +39,7 @@ export function PageHeader({
   eyebrow,
   eyebrowTone,
   title,
+  subtitle,
   actions,
 }: {
   eyebrow?: React.ReactNode
@@ -56,6 +57,7 @@ export function PageHeader({
       <div>
         {eyebrow ? <span className="section-eyebrow" style={eyebrowTone ? getAuditToneStyle(eyebrowTone, 'strong') : undefined}>{eyebrow}</span> : null}
         {title ? <h1>{title}</h1> : null}
+        {subtitle ? <p className="section-subtitle">{subtitle}</p> : null}
       </div>
       {actions || canGoBack ? (
         <div className="section-header-actions">

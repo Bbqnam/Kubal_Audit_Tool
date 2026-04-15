@@ -73,6 +73,7 @@ export type AuditPlanChangeHistoryEntry = {
 
 export type AuditPlanRecord = {
   id: string
+  auditId: string
   title: string
   standard: AuditPlanningStandard | string
   auditType: AuditPlanningType | string
@@ -96,6 +97,7 @@ export type AuditPlanRecord = {
   completionSummary: string
   createdAt: string
   updatedAt: string
+  updatedBy: string
   changeHistory: AuditPlanChangeHistoryEntry[]
   source?: 'seeded-excel' | 'manual'
 }

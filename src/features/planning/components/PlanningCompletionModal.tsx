@@ -28,15 +28,18 @@ export default function PlanningCompletionModal({ record, audits, onClose, onSav
   const [completionResult, setCompletionResult] = useState<AuditPlanCompletionResult>(record.completionResult || 'Closed')
   const [completionSummary, setCompletionSummary] = useState(record.completionSummary)
   const [linkedAuditId, setLinkedAuditId] = useState<string>(record.linkedAuditId ?? '')
+  const [validationMessage, setValidationMessage] = useState<string | null>(null)
   const requiresDateChangeReason = actualCompletionDate !== plannedCompletionDate
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
 
     if (requiresDateChangeReason && !completionDateChangeReason.trim()) {
+      setValidationMessage('Explain why the actual completion date changed before saving completion.')
       return
     }
 
+    setValidationMessage(null)
     onSave({
       actualCompletionDate,
       completionDateChangeReason: requiresDateChangeReason ? completionDateChangeReason.trim() : '',
@@ -63,6 +66,12 @@ export default function PlanningCompletionModal({ record, audits, onClose, onSav
       }
     >
       <form id="planning-completion-form" className="input-grid" onSubmit={handleSubmit}>
+        {validationMessage ? (
+          <div className="empty-state">
+            <h3>Completion details are incomplete</h3>
+            <p>{validationMessage}</p>
+          </div>
+        ) : null}
         <div className="planning-completion-summary">
           <strong>{record.title}</strong>
           <div className="inline-meta">

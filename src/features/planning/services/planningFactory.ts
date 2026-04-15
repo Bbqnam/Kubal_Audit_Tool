@@ -5,10 +5,11 @@ import type {
   AuditPlanStatus,
   PlanningHistoryAction,
 } from '../../../types/planning'
+import { createAuditReferenceId, DEFAULT_PLANNING_ACTOR } from '../../../utils/traceability'
 
 type PlanRecordInput = Omit<
   AuditPlanRecord,
-  'id' | 'year' | 'month' | 'createdAt' | 'updatedAt' | 'changeHistory' | 'actualCompletionDate' | 'completionDateChangeReason' | 'completionResult' | 'completionSummary'
+  'id' | 'auditId' | 'year' | 'month' | 'createdAt' | 'updatedAt' | 'updatedBy' | 'changeHistory' | 'actualCompletionDate' | 'completionDateChangeReason' | 'completionResult' | 'completionSummary'
 > & {
   actualCompletionDate?: string | null
   completionDateChangeReason?: string
@@ -63,6 +64,7 @@ export function normalizePlanningRecordShape(record: AuditPlanRecord): AuditPlan
 
   return {
     ...record,
+    auditId: record.auditId ?? createAuditReferenceId(plannedStart),
     plannedStart: orderedDates.plannedStart,
     plannedEnd: orderedDates.plannedEnd,
     year: derived.year,
@@ -73,6 +75,7 @@ export function normalizePlanningRecordShape(record: AuditPlanRecord): AuditPlan
     completionSummary: record.completionSummary ?? '',
     createdAt: record.createdAt ?? now,
     updatedAt: record.updatedAt ?? now,
+    updatedBy: record.updatedBy ?? DEFAULT_PLANNING_ACTOR,
     changeHistory:
       Array.isArray(record.changeHistory) && record.changeHistory.length
         ? record.changeHistory
@@ -80,7 +83,7 @@ export function normalizePlanningRecordShape(record: AuditPlanRecord): AuditPlan
   }
 }
 
-export function createPlanRecord(input: PlanRecordInput): AuditPlanRecord {
+export function createPlanRecord(input: PlanRecordInput, existingAuditIds: Iterable<string> = []): AuditPlanRecord {
   const timestamp = createPlanningTimestamp()
   const orderedDates = ensureDateOrder(input.plannedStart, input.plannedEnd)
   const derived = deriveYearMonth(orderedDates.plannedStart)
@@ -88,6 +91,7 @@ export function createPlanRecord(input: PlanRecordInput): AuditPlanRecord {
   return normalizePlanningRecordShape({
     ...input,
     id: createId('plan'),
+    auditId: createAuditReferenceId(orderedDates.plannedStart, existingAuditIds),
     plannedStart: orderedDates.plannedStart,
     plannedEnd: orderedDates.plannedEnd,
     year: derived.year,
@@ -98,16 +102,18 @@ export function createPlanRecord(input: PlanRecordInput): AuditPlanRecord {
     completionSummary: input.completionSummary ?? '',
     createdAt: timestamp,
     updatedAt: timestamp,
+    updatedBy: DEFAULT_PLANNING_ACTOR,
     changeHistory: [buildPlanHistoryEntry('Created', 'Planned audit created.', timestamp)],
   })
 }
 
-export function duplicatePlanRecord(source: AuditPlanRecord) {
+export function duplicatePlanRecord(source: AuditPlanRecord, existingAuditIds: Iterable<string> = []) {
   const timestamp = createPlanningTimestamp()
 
   return normalizePlanningRecordShape({
     ...source,
     id: createId('plan'),
+    auditId: createAuditReferenceId(source.plannedStart || timestamp.slice(0, 10), existingAuditIds),
     status: source.status === 'Cancelled' ? 'Planned' : source.status,
     linkedAuditId: null,
     actualCompletionDate: null,
@@ -116,6 +122,7 @@ export function duplicatePlanRecord(source: AuditPlanRecord) {
     completionSummary: '',
     createdAt: timestamp,
     updatedAt: timestamp,
+    updatedBy: DEFAULT_PLANNING_ACTOR,
     changeHistory: [
       ...source.changeHistory,
       buildPlanHistoryEntry('Duplicated', `Planning record duplicated from ${source.title}.`, timestamp),
@@ -134,6 +141,7 @@ export function updatePlanWithHistory(
     ...record,
     ...updates,
     updatedAt: timestamp,
+    updatedBy: updates.updatedBy ?? DEFAULT_PLANNING_ACTOR,
     changeHistory: [...record.changeHistory, buildPlanHistoryEntry(action, summary, timestamp)],
   })
 

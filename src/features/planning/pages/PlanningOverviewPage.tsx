@@ -1,13 +1,16 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState, type ChangeEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import MetadataSection from '../../../components/MetadataSection'
 import { AuditTypeBadge, MetricCard, PageHeader, Panel, StatusBadge } from '../../../components/ui'
 import { ButtonLabel } from '../../../components/icons'
 import { getAuditRecordHomePath } from '../../../data/navigation'
 import { getAuditToneStyle } from '../../../data/auditTypes'
 import { useAuditLibrary } from '../../shared/context/useAuditLibrary'
+import { parseImportFile } from '../../shared/services/fileTransfer'
 import type { AuditPlanCompletionResult } from '../../../types/planning'
 import { formatDate } from '../../../utils/dateUtils'
 import { exportPlanningToExcel } from '../../../utils/exportUtils'
+import { getPlanningMetadataItems } from '../../../utils/traceability'
 import { auditPlanningStandardOptions } from '../data/planningSeed'
 import PlanningCalendarNavigator from '../components/PlanningCalendarNavigator'
 import PlanningMonthCalendar from '../components/PlanningMonthCalendar'
@@ -43,9 +46,11 @@ export default function PlanningOverviewPage() {
     deletePlanRecord,
     getAuditById,
     getPlanById,
+    importPlanningRecords,
     updatePlanRecord,
   } = useAuditLibrary()
   const currentDate = new Date()
+  const importInputRef = useRef<HTMLInputElement | null>(null)
   const [selectedYear, setSelectedYear] = useState<number>(
     planningYears.includes(currentDate.getFullYear())
       ? currentDate.getFullYear()
@@ -59,6 +64,7 @@ export default function PlanningOverviewPage() {
   const [completionRecordId, setCompletionRecordId] = useState<string | null>(null)
   const [historyRecordId, setHistoryRecordId] = useState<string | null>(null)
   const [exportMessage, setExportMessage] = useState<string | null>(null)
+  const [importMessage, setImportMessage] = useState<string | null>(null)
   const departmentOptions = useMemo(() => getPlanningDepartmentOptions(planningRecords), [planningRecords])
   const { firstDay: selectedMonthStart, lastDay: selectedMonthEnd } = getMonthDateRange(selectedYear, selectedMonth)
 
@@ -111,8 +117,34 @@ export default function PlanningOverviewPage() {
   }
 
   async function handleExport() {
-    const result = await exportPlanningToExcel('Audit Planning Register', filteredRecords)
-    setExportMessage(`${result.filename} prepared. ${result.message}`)
+    try {
+      const result = await exportPlanningToExcel('Audit Planning Register', filteredRecords)
+      setExportMessage(`${result.filename} prepared. ${result.message}`)
+    } catch (error) {
+      setExportMessage(error instanceof Error ? error.message : 'Planning export failed. Please try again.')
+    }
+  }
+
+  async function handleImportChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+
+    if (!file) {
+      return
+    }
+
+    try {
+      const parsed = await parseImportFile(file)
+
+      if (parsed.entityType !== 'planning-library') {
+        throw new Error('This file contains audit records. Import it from the Audit Library instead.')
+      }
+
+      const mergeResult = importPlanningRecords(parsed.planningRecords)
+      setImportMessage(`Imported ${mergeResult.imported}, updated ${mergeResult.updated}, skipped ${mergeResult.skipped} planning record(s) from ${file.name}.`)
+    } catch (error) {
+      setImportMessage(error instanceof Error ? error.message : 'Planning import failed. Please try again.')
+    }
   }
 
   function handleEditorSave(draft: PlanningEditorDraft) {
@@ -258,10 +290,20 @@ export default function PlanningOverviewPage() {
 
   return (
     <div className="module-page planning-page">
-        <PageHeader
+      <PageHeader
         eyebrow="Audit planning"
         actions={
           <div className="section-header-actions">
+            <input
+              ref={importInputRef}
+              type="file"
+              accept=".xlsx,.xlsm,.json"
+              onChange={(event) => void handleImportChange(event)}
+              hidden
+            />
+            <button type="button" className="button button-secondary" onClick={() => importInputRef.current?.click()}>
+              <ButtonLabel icon="open" label="Import plan" />
+            </button>
             <button type="button" className="button button-secondary" onClick={() => setEditorState({ mode: 'create', defaultStartDate: `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-01` })}>
               <ButtonLabel icon="add" label="Quick create" />
             </button>
@@ -270,7 +312,9 @@ export default function PlanningOverviewPage() {
             </button>
           </div>
         }
-      />
+        />
+
+      {importMessage ? <p className="export-feedback">{importMessage}</p> : null}
 
       <div className="metrics-grid planning-metrics-grid">
         <MetricCard label={`${getPlanMonthLabel(selectedMonth)} audits`} value={visibleSummary.total} />
@@ -382,6 +426,7 @@ export default function PlanningOverviewPage() {
                         <strong>{record.title}</strong>
                         <span>{record.frequency} · {record.notes || 'No notes'}</span>
                       </div>
+                      <MetadataSection items={getPlanningMetadataItems(record, derivedStatus)} compact />
                     </td>
                     <td>
                       <div className="planning-table-title">

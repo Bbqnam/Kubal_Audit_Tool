@@ -1,9 +1,12 @@
 import { Link } from 'react-router-dom'
+import ActivityLog from '../../../components/ActivityLog'
 import ExportCenter from '../../../components/ExportCenter'
 import { ButtonLabel } from '../../../components/icons'
+import MetadataSection from '../../../components/MetadataSection'
 import { getAuditSectionPath } from '../../../data/navigation'
 import { DetailList, Field, MetricCard, PageHeader, Panel } from '../../../components/ui'
 import { useVda65AuditWorkspace } from '../../shared/context/useVda65AuditWorkspace'
+import { getAuditInfoMetadataItems, getAuditInfoMetadataNote } from '../../../utils/traceability'
 
 export default function Vda65AuditInfoPage() {
   const { audit, updateAuditInfo, updateAuditTitle, vda65AuditInfo, vda65Checklist } = useVda65AuditWorkspace()
@@ -78,6 +81,14 @@ export default function Vda65AuditInfoPage() {
               <ButtonLabel icon="checklist" label="Go to checklist" />
             </Link>
           </div>
+        </Panel>
+
+        <Panel title="Metadata" description="Controlled identifiers and update ownership for this audit record.">
+          <MetadataSection items={getAuditInfoMetadataItems(audit)} note={getAuditInfoMetadataNote(audit)} />
+        </Panel>
+
+        <Panel title="Activity log" description="Newest audit events first.">
+          <ActivityLog history={audit.history} />
         </Panel>
       </div>
       <ExportCenter auditLabel={audit.title} payload={audit} />

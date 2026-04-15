@@ -1,10 +1,13 @@
 import { Link } from 'react-router-dom'
+import ActivityLog from '../../../components/ActivityLog'
 import ExportCenter from '../../../components/ExportCenter'
 import { ButtonLabel } from '../../../components/icons'
+import MetadataSection from '../../../components/MetadataSection'
 import { getAuditSectionPath, vda63ChapterTitles } from '../../../data/navigation'
 import { buildVda63Summary, chapterOrder, getVda63AnsweredCount, getVda63ChapterStatusLabel } from '../../../utils/auditUtils'
 import { DetailList, Field, MetricCard, PageHeader, Panel, ProgressBar, StatusBadge } from '../../../components/ui'
 import { useVda63AuditWorkspace } from '../../shared/context/useVda63AuditWorkspace'
+import { getAuditInfoMetadataItems, getAuditInfoMetadataNote } from '../../../utils/traceability'
 
 export default function Vda63AuditInfoPage() {
   const { audit, chapterScope, updateAuditInfo, updateAuditTitle, updateChapterScope, vda63AuditInfo, vda63Questions } = useVda63AuditWorkspace()
@@ -165,6 +168,14 @@ export default function Vda63AuditInfoPage() {
               <ButtonLabel icon="summary" label="Summary" />
             </Link>
           </div>
+        </Panel>
+
+        <Panel title="Metadata" description="Controlled identifiers and update ownership for this audit record.">
+          <MetadataSection items={getAuditInfoMetadataItems(audit)} note={getAuditInfoMetadataNote(audit)} />
+        </Panel>
+
+        <Panel title="Activity log" description="Newest audit events first.">
+          <ActivityLog history={audit.history} />
         </Panel>
       </div>
       <ExportCenter auditLabel={audit.title} payload={audit} />

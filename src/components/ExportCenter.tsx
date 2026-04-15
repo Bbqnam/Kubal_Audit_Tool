@@ -16,12 +16,18 @@ export default function ExportCenter({
 
   async function runExport(format: 'excel' | 'pdf') {
     setBusy(true)
-    const result =
-      format === 'excel'
-        ? await exportAuditToExcel(auditLabel, payload)
-        : await exportAuditToPdf(auditLabel, payload)
-    setMessage(`${result.filename} prepared. ${result.message}`)
-    setBusy(false)
+
+    try {
+      const result =
+        format === 'excel'
+          ? await exportAuditToExcel(auditLabel, payload)
+          : await exportAuditToPdf(auditLabel, payload)
+      setMessage(`${result.filename} prepared. ${result.message}`)
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Export failed. Please try again.')
+    } finally {
+      setBusy(false)
+    }
   }
 
   return (

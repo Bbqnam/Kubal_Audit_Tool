@@ -5,6 +5,7 @@ import type { AuditPlanRecord, YearlyPlanningChecklistItem } from '../../../type
 import { createSeedPlanningChecklist, createSeedPlanningRecords } from '../../planning/data/planningSeed'
 import { normalizePlanningRecordShape } from '../../planning/services/planningFactory'
 import { mergePlanningYears } from '../../planning/services/planningUtils'
+import { createAuditReferenceId } from '../../../utils/traceability'
 
 export type AuditRepository = {
   loadWorkspace: () => WorkspaceSnapshot
@@ -30,6 +31,40 @@ function createSeedWorkspace(): WorkspaceSnapshot {
     planningRecords,
     planningYears: mergePlanningYears(planningRecords),
     planningChecklist: createSeedPlanningChecklist(),
+  }
+}
+
+function ensureTraceabilityIds(audits: AuditRecord[], planningRecords: AuditPlanRecord[]) {
+  const usedAuditIds = new Set<string>()
+
+  const normalizedPlanningRecords = planningRecords.map((record) => {
+    const plannedAuditId = record.auditId && !usedAuditIds.has(record.auditId)
+      ? record.auditId
+      : createAuditReferenceId(record.plannedStart, usedAuditIds)
+    usedAuditIds.add(plannedAuditId)
+
+    return {
+      ...record,
+      auditId: plannedAuditId,
+    }
+  })
+
+  const planAuditIdMap = new Map(normalizedPlanningRecords.map((record) => [record.id, record.auditId]))
+  const normalizedAudits = audits.map((record) => {
+    const linkedAuditId = record.planRecordId ? planAuditIdMap.get(record.planRecordId) : null
+    const resolvedAuditId = linkedAuditId
+      ?? (record.auditId && !usedAuditIds.has(record.auditId) ? record.auditId : createAuditReferenceId(record.auditDate, usedAuditIds))
+    usedAuditIds.add(resolvedAuditId)
+
+    return {
+      ...record,
+      auditId: resolvedAuditId,
+    }
+  })
+
+  return {
+    audits: normalizedAudits,
+    planningRecords: normalizedPlanningRecords,
   }
 }
 
@@ -72,8 +107,9 @@ export function createLocalStorageAuditRepository(): AuditRepository {
               planningChecklist: Array.isArray(parsed.planningChecklist) ? parsed.planningChecklist : seedWorkspace.planningChecklist,
             }
 
-        const { audits, idMap } = assignReadableAuditRouteIds(rawWorkspace.audits)
-        const planningRecords = rawWorkspace.planningRecords.map((record) => {
+        const traceableWorkspace = ensureTraceabilityIds(rawWorkspace.audits, rawWorkspace.planningRecords)
+        const { audits, idMap } = assignReadableAuditRouteIds(traceableWorkspace.audits)
+        const planningRecords = traceableWorkspace.planningRecords.map((record) => {
           if (!record.linkedAuditId) {
             return record
           }

@@ -4,9 +4,30 @@ import { formatDate, formatDateTime } from '../utils/dateUtils'
 import { ButtonLabel } from './icons'
 import { AuditTypeBadge, StatusBadge } from './ui'
 import type { KubalProcessAreaGroup } from '../features/generic/data/nonconformityTemplate'
+import { isActionItemDelayed } from '../features/shared/services/auditWorkflow'
 
 function renderText(value: string, fallback = 'None yet') {
   return value.trim() ? value : <span className="table-subtle-cell">{fallback}</span>
+}
+
+function getActionValidationMessage(item: ActionPlanItem) {
+  if (!item.owner.trim()) {
+    return 'Assign an owner before saving this action.'
+  }
+
+  if (!item.dueDate) {
+    return 'Add a due date before saving this action.'
+  }
+
+  if (!(item.action || item.correctiveAction || item.finding).trim()) {
+    return 'Document the action or finding before saving this action.'
+  }
+
+  if (item.status === 'Closed' && !item.closureEvidence.trim()) {
+    return 'Add closure evidence before closing this action.'
+  }
+
+  return null
 }
 
 export default function ActionPlanTable({
@@ -30,9 +51,29 @@ export default function ActionPlanTable({
 }) {
   const showNcMetadata = processAreaGroups.length > 0 || clauseOptions.length > 0 || nonconformityTypeOptions.length > 0
   const [expandedIds, setExpandedIds] = useState<string[]>(() => items.slice(0, 1).map((item) => item.id))
+  const [validationMessages, setValidationMessages] = useState<Record<string, string>>({})
 
   const toggleExpanded = (id: string) => {
     setExpandedIds((current) => (current.includes(id) ? current.filter((itemId) => itemId !== id) : [...current, id]))
+  }
+
+  const handleSave = (item: ActionPlanItem) => {
+    const validationMessage = getActionValidationMessage(item)
+
+    if (validationMessage) {
+      setValidationMessages((current) => ({ ...current, [item.id]: validationMessage }))
+      if (!expandedIds.includes(item.id)) {
+        setExpandedIds((current) => [...current, item.id])
+      }
+      return
+    }
+
+    setValidationMessages((current) => {
+      const nextMessages = { ...current }
+      delete nextMessages[item.id]
+      return nextMessages
+    })
+    onSave?.(item.id)
   }
 
   return (
@@ -40,9 +81,10 @@ export default function ActionPlanTable({
       {items.map((item, index) => {
         const isExpanded = expandedIds.includes(item.id)
         const isLinkedToReport = Boolean(item.reportItemId)
+        const validationMessage = validationMessages[item.id]
 
         return (
-          <article key={item.id} className={`action-plan-card${!onUpdate && item.dueDate && new Date(item.dueDate) < new Date() && item.status !== 'Closed' ? ' table-row-attention' : ''}`}>
+          <article key={item.id} className={`action-plan-card${!onUpdate && isActionItemDelayed(item) ? ' table-row-attention' : ''}`}>
             <div className="action-plan-card-header">
               <div className="action-plan-card-header-main">
                 <div className="action-plan-card-badges">
@@ -56,7 +98,7 @@ export default function ActionPlanTable({
                     <button
                       type="button"
                       className={`button button-small ${item.savedAt ? 'button-secondary' : 'button-primary'}`}
-                      onClick={() => onSave(item.id)}
+                      onClick={() => handleSave(item)}
                       title={item.savedAt ? `Saved ${formatDateTime(item.savedAt)}` : 'Save action'}
                     >
                       <ButtonLabel icon="save" label={item.savedAt ? 'Saved' : 'Save'} />
@@ -64,6 +106,7 @@ export default function ActionPlanTable({
                   ) : null}
                 </div>
                 <p className="action-plan-card-finding">{item.finding || 'No finding documented yet.'}</p>
+                {validationMessage ? <p className="export-feedback">{validationMessage}</p> : null}
                 <div className="action-plan-card-meta-strip">
                   <span><strong>Owner</strong> {item.owner || 'Not assigned'}</span>
                   <span><strong>Due</strong> {item.dueDate ? formatDate(item.dueDate) : 'No date'}</span>

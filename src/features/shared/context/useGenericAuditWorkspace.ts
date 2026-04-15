@@ -1,5 +1,6 @@
 import type { ActionPlanItem, ActionPlanUpdatePatch, AuditInfo, GenericAuditReportItem } from '../../../types/audit'
 import { useAuditWorkspace } from './useAuditWorkspace'
+import { createAuditHistoryEntry, describeActionPlanItem } from '../../../utils/traceability'
 
 function createId() {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
@@ -175,11 +176,16 @@ export function useGenericAuditWorkspace() {
       })
     },
     addActionPlanItem: () => {
+      const newAction = createBlankActionItem(audit.auditType)
       workspace.updateAuditRecord(audit.id, (current) => ({
         ...current,
         actions: [
           ...current.actions,
-          createBlankActionItem(current.auditType),
+          newAction,
+        ],
+        history: [
+          ...current.history,
+          createAuditHistoryEntry('action added', `Action added: ${describeActionPlanItem(newAction)}.`),
         ],
       }))
     },
@@ -195,10 +201,20 @@ export function useGenericAuditWorkspace() {
       }))
     },
     saveActionPlanItem: (id: string) => {
-      workspace.updateAuditRecord(audit.id, (current) => ({
-        ...current,
-        actions: updateListItem<ActionPlanItem>(current.actions, id, { savedAt: new Date().toISOString() }),
-      }))
+      workspace.updateAuditRecord(audit.id, (current) => {
+        const action = current.actions.find((item) => item.id === id)
+
+        return {
+          ...current,
+          actions: updateListItem<ActionPlanItem>(current.actions, id, { savedAt: new Date().toISOString() }),
+          history: action
+            ? [
+                ...current.history,
+                createAuditHistoryEntry('action updated', `Action updated: ${describeActionPlanItem(action)}.`),
+              ]
+            : current.history,
+        }
+      })
     },
   }
 }

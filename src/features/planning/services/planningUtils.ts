@@ -1,6 +1,7 @@
 import type { AuditType } from '../../../types/audit'
 import type { AuditPlanRecord } from '../../../types/planning'
 import { getExecutionAuditTypeForPlan } from '../../../data/auditTypes'
+import { isPastDate } from '../../../utils/dateUtils'
 
 export const planningMonthLabels = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
 export const planningWeekdayLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
@@ -142,16 +143,11 @@ export function comparePlanRecords(left: AuditPlanRecord, right: AuditPlanRecord
 }
 
 export function getDerivedPlanStatus(record: AuditPlanRecord, referenceDate = new Date()) {
-  if (record.status === 'Completed' || record.status === 'Overdue' || record.status === 'Cancelled') {
+  if (record.status === 'Completed' || record.status === 'Cancelled') {
     return record.status
   }
 
-  const reference = new Date(referenceDate)
-  reference.setHours(0, 0, 0, 0)
-  const plannedEnd = new Date(record.plannedEnd)
-  plannedEnd.setHours(0, 0, 0, 0)
-
-  if (record.status === 'Planned' && plannedEnd < reference) {
+  if (record.status === 'Overdue' || isPastDate(record.plannedEnd, referenceDate)) {
     return 'Overdue'
   }
 
@@ -425,13 +421,12 @@ export function groupPlansByStandard(records: AuditPlanRecord[]) {
     }, [])
 }
 
-export function countPlansBy<T extends string>(records: AuditPlanRecord[], getKey: (record: AuditPlanRecord) => T, referenceDate = new Date()) {
+export function countPlansBy<T extends string>(records: AuditPlanRecord[], getKey: (record: AuditPlanRecord) => T) {
   return records.reduce<Record<T, number>>((result, record) => {
     const key = getKey(record)
-    const status = getDerivedPlanStatus(record, referenceDate)
 
     if (key in result) {
-      result[key] += status === 'Completed' ? 1 : 1
+      result[key] += 1
       return result
     }
 

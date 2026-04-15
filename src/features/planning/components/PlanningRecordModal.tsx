@@ -102,9 +102,40 @@ export default function PlanningRecordModal({
     initialRecord ? toDraft(initialRecord) : createDefaultDraft(defaultStartDate),
   )
   const [showMoreDetails, setShowMoreDetails] = useState(false)
+  const [validationErrors, setValidationErrors] = useState<string[]>([])
 
   const selectedStandardOption = standardOptions.find((item) => item.label === draft.standard)
   const showProcessField = processScopedStandards.has(draft.standard)
+
+  function validateDraft(value: PlanningEditorDraft) {
+    const errors: string[] = []
+
+    if (!value.title.trim()) {
+      errors.push('Title is required.')
+    }
+
+    if (!value.standard.trim()) {
+      errors.push('Standard is required.')
+    }
+
+    if (!value.owner.trim()) {
+      errors.push('Owner is required.')
+    }
+
+    if (!value.plannedStart) {
+      errors.push('Planned start date is required.')
+    }
+
+    if (!value.plannedEnd) {
+      errors.push('Planned end date is required.')
+    }
+
+    if (showProcessField && !value.processArea.trim()) {
+      errors.push('Process / stream is required for the selected standard.')
+    }
+
+    return errors
+  }
 
   function applyStandardOption(optionId: string) {
     const option = standardOptions.find((item) => item.id === optionId)
@@ -124,6 +155,14 @@ export default function PlanningRecordModal({
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    const errors = validateDraft(draft)
+
+    if (errors.length) {
+      setValidationErrors(errors)
+      return
+    }
+
+    setValidationErrors([])
     onSave({
       ...draft,
       plannedEnd: draft.plannedEnd < draft.plannedStart ? draft.plannedStart : draft.plannedEnd,
@@ -161,6 +200,12 @@ export default function PlanningRecordModal({
       }
     >
       <form id="planning-record-form" className="input-grid planning-form-grid" onSubmit={handleSubmit}>
+        {validationErrors.length ? (
+          <div className="empty-state">
+            <h3>Missing required planning data</h3>
+            <p>{validationErrors.join(' ')}</p>
+          </div>
+        ) : null}
         <Field label="Title" full>
           <input value={draft.title} onChange={(event) => setDraft((current) => ({ ...current, title: event.target.value }))} required />
         </Field>

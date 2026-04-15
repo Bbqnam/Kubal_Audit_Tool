@@ -69,7 +69,7 @@ export default function PlanningMonthCalendar({
                   {day.isToday ? <small className="planning-day-cell-today-badge">Today</small> : day.records.length ? <small>{day.records.length}</small> : null}
                 </div>
                 <div className="planning-day-cell-events">
-                  {day.records.slice(0, 4).map((record) => {
+                  {day.records.slice(0, 3).map((record) => {
                     const status = getDerivedPlanStatus(record)
                     const canOpenReport = !!onOpenReport && (Boolean(record.linkedAuditId) || Boolean(getPlanExecutionAuditType(record)))
                     const canComplete = status !== 'Completed' && status !== 'Cancelled' && !!onCompleteRecord
@@ -140,7 +140,7 @@ export default function PlanningMonthCalendar({
                       </div>
                     )
                   })}
-                  {day.records.length > 4 ? <div className="planning-calendar-more">+{day.records.length - 4} more</div> : null}
+                  {day.records.length > 3 ? <div className="planning-calendar-more">+{day.records.length - 3} more</div> : null}
                 </div>
               </div>
             ))}

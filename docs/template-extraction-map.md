@@ -2,7 +2,7 @@
 
 ## Workbook used
 
-- Canonical workbook: `public/VDA 6.3 Process Audit_Moldshop Feb 25 .xlsm`
+- Canonical workbook: `docs/internal-workbooks/VDA 6.3 Process Audit_Moldshop Feb 25 .xlsm`
 - Duplicate workbook also found: `public/VDA 6.3 Process Audit_Moldshop Feb 25 [28].xlsm`
 - Both files are byte-identical by SHA-1: `d1f5ee64e735472ed5731e338a188bb896cf7f74`
 - Extraction was performed against the first filename above and treated it as the source of truth

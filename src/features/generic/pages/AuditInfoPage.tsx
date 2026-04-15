@@ -1,11 +1,14 @@
 import { useNavigate } from 'react-router-dom'
+import ActivityLog from '../../../components/ActivityLog'
 import { ButtonLabel } from '../../../components/icons'
 import ExportCenter from '../../../components/ExportCenter'
+import MetadataSection from '../../../components/MetadataSection'
 import { DetailList, Field, MetricCard, PageHeader, Panel } from '../../../components/ui'
 import { getAuditTitleLabel, getAuditTypeFamilyLabel, getAuditTypeLabel, getAuditWorkspaceKind } from '../../../data/auditTypes'
 import { getAuditRecordHomePath, getAuditSectionPath, getPlanningCalendarPath } from '../../../data/navigation'
 import { useGenericAuditWorkspace } from '../../shared/context/useGenericAuditWorkspace'
 import { sharedAuditTemplateOptions } from '../data/nonconformityTemplate'
+import { getAuditInfoMetadataItems, getAuditInfoMetadataNote } from '../../../utils/traceability'
 
 export default function GenericAuditInfoPage() {
   const navigate = useNavigate()
@@ -193,6 +196,14 @@ export default function GenericAuditInfoPage() {
               { label: 'Next step', value: selectedTemplateOption?.auditType === 'vda63' || selectedTemplateOption?.auditType === 'vda65' ? 'Use Open template to move into the dedicated VDA workflow.' : 'Use the Next button above to continue into Audit Report and Action Plan.' },
             ]}
           />
+        </Panel>
+
+        <Panel title="Metadata" description="Controlled identifiers and update ownership for this audit record.">
+          <MetadataSection items={getAuditInfoMetadataItems(audit)} note={getAuditInfoMetadataNote(audit)} />
+        </Panel>
+
+        <Panel title="Activity log" description="Newest audit events first.">
+          <ActivityLog history={audit.history} />
         </Panel>
       </div>
 

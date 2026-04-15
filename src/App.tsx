@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { Suspense, lazy, useEffect } from 'react'
 import { BrowserRouter, Navigate, Routes, Route } from 'react-router-dom'
 import './App.css'
 import { APP_NAME } from './data/branding'
@@ -8,26 +8,46 @@ import AppLayout from './layouts/AppLayout'
 import Dashboard from './pages/Dashboard'
 import AuditsPage from './pages/AuditsPage'
 import NotFound from './pages/NotFound'
-import YearCalendarPage from './features/planning/pages/YearCalendarPage'
-import ThreeYearPlanPage from './features/planning/pages/ThreeYearPlanPage'
-import PlanningReportsPage from './features/planning/pages/PlanningReportsPage'
-import PlanningChecklistPage from './features/planning/pages/PlanningChecklistPage'
-import GenericAuditActionPlanPage from './features/generic/pages/ActionPlanPage'
-import GenericAuditInfoPage from './features/generic/pages/AuditInfoPage'
-import GenericAuditReportPage from './features/generic/pages/ReportPage'
 import CanonicalAuditRoute from './features/shared/components/CanonicalAuditRoute'
-import Vda63AuditInfoPage from './features/vda63/pages/AuditInfoPage'
-import Vda63ChapterPage from './features/vda63/pages/ChapterPage'
-import Vda63SummaryPage from './features/vda63/pages/SummaryPage'
-import Vda63ActionPlanPage from './features/vda63/pages/ActionPlanPage'
-import Vda63ReportPreviewPage from './features/vda63/pages/ReportPreviewPage'
-import Vda65AuditInfoPage from './features/vda65/pages/AuditInfoPage'
-import Vda65ProductInfoPage from './features/vda65/pages/ProductInfoPage'
-import Vda65ChecklistPage from './features/vda65/pages/ChecklistPage'
-import Vda65ResultsPage from './features/vda65/pages/ResultsPage'
-import Vda65FindingsPage from './features/vda65/pages/FindingsPage'
-import Vda65ActionPlanPage from './features/vda65/pages/ActionPlanPage'
-import Vda65ReportPreviewPage from './features/vda65/pages/ReportPreviewPage'
+
+const YearCalendarPage = lazy(() => import('./features/planning/pages/YearCalendarPage'))
+const ThreeYearPlanPage = lazy(() => import('./features/planning/pages/ThreeYearPlanPage'))
+const PlanningReportsPage = lazy(() => import('./features/planning/pages/PlanningReportsPage'))
+const PlanningChecklistPage = lazy(() => import('./features/planning/pages/PlanningChecklistPage'))
+const GenericAuditActionPlanPage = lazy(() => import('./features/generic/pages/ActionPlanPage'))
+const GenericAuditInfoPage = lazy(() => import('./features/generic/pages/AuditInfoPage'))
+const GenericAuditReportPage = lazy(() => import('./features/generic/pages/ReportPage'))
+const Vda63AuditInfoPage = lazy(() => import('./features/vda63/pages/AuditInfoPage'))
+const Vda63ChapterPage = lazy(() => import('./features/vda63/pages/ChapterPage'))
+const Vda63SummaryPage = lazy(() => import('./features/vda63/pages/SummaryPage'))
+const Vda63ActionPlanPage = lazy(() => import('./features/vda63/pages/ActionPlanPage'))
+const Vda63ReportPreviewPage = lazy(() => import('./features/vda63/pages/ReportPreviewPage'))
+const Vda65AuditInfoPage = lazy(() => import('./features/vda65/pages/AuditInfoPage'))
+const Vda65ProductInfoPage = lazy(() => import('./features/vda65/pages/ProductInfoPage'))
+const Vda65ChecklistPage = lazy(() => import('./features/vda65/pages/ChecklistPage'))
+const Vda65ResultsPage = lazy(() => import('./features/vda65/pages/ResultsPage'))
+const Vda65FindingsPage = lazy(() => import('./features/vda65/pages/FindingsPage'))
+const Vda65ActionPlanPage = lazy(() => import('./features/vda65/pages/ActionPlanPage'))
+const Vda65ReportPreviewPage = lazy(() => import('./features/vda65/pages/ReportPreviewPage'))
+
+function RouteLoadingFallback() {
+  return (
+    <div className="module-page">
+      <section className="panel">
+        <div className="panel-body">
+          <div className="empty-state">
+            <h3>Loading workspace</h3>
+            <p>Preparing the requested audit module.</p>
+          </div>
+        </div>
+      </section>
+    </div>
+  )
+}
+
+function LazyRoute({ children }: { children: React.ReactNode }) {
+  return <Suspense fallback={<RouteLoadingFallback />}>{children}</Suspense>
+}
 
 function App() {
   useEffect(() => {
@@ -42,129 +62,159 @@ function App() {
             <Route path="/" element={<AppLayout />}>
               <Route index element={<Dashboard />} />
               <Route path="planning" element={<Navigate to="/planning/calendar" replace />} />
-              <Route path="planning/calendar" element={<YearCalendarPage />} />
-              <Route path="planning/three-year" element={<ThreeYearPlanPage />} />
-              <Route path="planning/reports" element={<PlanningReportsPage />} />
-              <Route path="planning/checklist" element={<PlanningChecklistPage />} />
+              <Route path="planning/calendar" element={<LazyRoute><YearCalendarPage /></LazyRoute>} />
+              <Route path="planning/three-year" element={<LazyRoute><ThreeYearPlanPage /></LazyRoute>} />
+              <Route path="planning/reports" element={<LazyRoute><PlanningReportsPage /></LazyRoute>} />
+              <Route path="planning/checklist" element={<LazyRoute><PlanningChecklistPage /></LazyRoute>} />
               <Route path="audits" element={<AuditsPage />} />
               <Route
                 path="audits/:auditId/vda63"
                 element={(
-                  <CanonicalAuditRoute expectedAuditType="vda63">
-                    <Vda63AuditInfoPage />
-                  </CanonicalAuditRoute>
+                  <LazyRoute>
+                    <CanonicalAuditRoute expectedAuditType="vda63">
+                      <Vda63AuditInfoPage />
+                    </CanonicalAuditRoute>
+                  </LazyRoute>
                 )}
               />
               <Route
                 path="audits/:auditId/vda63/:chapter"
                 element={(
-                  <CanonicalAuditRoute expectedAuditType="vda63">
-                    <Vda63ChapterPage />
-                  </CanonicalAuditRoute>
+                  <LazyRoute>
+                    <CanonicalAuditRoute expectedAuditType="vda63">
+                      <Vda63ChapterPage />
+                    </CanonicalAuditRoute>
+                  </LazyRoute>
                 )}
               />
               <Route
                 path="audits/:auditId/vda63/summary"
                 element={(
-                  <CanonicalAuditRoute expectedAuditType="vda63">
-                    <Vda63SummaryPage />
-                  </CanonicalAuditRoute>
+                  <LazyRoute>
+                    <CanonicalAuditRoute expectedAuditType="vda63">
+                      <Vda63SummaryPage />
+                    </CanonicalAuditRoute>
+                  </LazyRoute>
                 )}
               />
               <Route
                 path="audits/:auditId/vda63/action-plan"
                 element={(
-                  <CanonicalAuditRoute expectedAuditType="vda63">
-                    <Vda63ActionPlanPage />
-                  </CanonicalAuditRoute>
+                  <LazyRoute>
+                    <CanonicalAuditRoute expectedAuditType="vda63">
+                      <Vda63ActionPlanPage />
+                    </CanonicalAuditRoute>
+                  </LazyRoute>
                 )}
               />
               <Route
                 path="audits/:auditId/vda63/report"
                 element={(
-                  <CanonicalAuditRoute expectedAuditType="vda63">
-                    <Vda63ReportPreviewPage />
-                  </CanonicalAuditRoute>
+                  <LazyRoute>
+                    <CanonicalAuditRoute expectedAuditType="vda63">
+                      <Vda63ReportPreviewPage />
+                    </CanonicalAuditRoute>
+                  </LazyRoute>
                 )}
               />
               <Route
                 path="audits/:auditId/vda65"
                 element={(
-                  <CanonicalAuditRoute expectedAuditType="vda65">
-                    <Vda65AuditInfoPage />
-                  </CanonicalAuditRoute>
+                  <LazyRoute>
+                    <CanonicalAuditRoute expectedAuditType="vda65">
+                      <Vda65AuditInfoPage />
+                    </CanonicalAuditRoute>
+                  </LazyRoute>
                 )}
               />
               <Route
                 path="audits/:auditId/vda65/product"
                 element={(
-                  <CanonicalAuditRoute expectedAuditType="vda65">
-                    <Vda65ProductInfoPage />
-                  </CanonicalAuditRoute>
+                  <LazyRoute>
+                    <CanonicalAuditRoute expectedAuditType="vda65">
+                      <Vda65ProductInfoPage />
+                    </CanonicalAuditRoute>
+                  </LazyRoute>
                 )}
               />
               <Route
                 path="audits/:auditId/vda65/checklist"
                 element={(
-                  <CanonicalAuditRoute expectedAuditType="vda65">
-                    <Vda65ChecklistPage />
-                  </CanonicalAuditRoute>
+                  <LazyRoute>
+                    <CanonicalAuditRoute expectedAuditType="vda65">
+                      <Vda65ChecklistPage />
+                    </CanonicalAuditRoute>
+                  </LazyRoute>
                 )}
               />
               <Route
                 path="audits/:auditId/vda65/results"
                 element={(
-                  <CanonicalAuditRoute expectedAuditType="vda65">
-                    <Vda65ResultsPage />
-                  </CanonicalAuditRoute>
+                  <LazyRoute>
+                    <CanonicalAuditRoute expectedAuditType="vda65">
+                      <Vda65ResultsPage />
+                    </CanonicalAuditRoute>
+                  </LazyRoute>
                 )}
               />
               <Route
                 path="audits/:auditId/vda65/findings"
                 element={(
-                  <CanonicalAuditRoute expectedAuditType="vda65">
-                    <Vda65FindingsPage />
-                  </CanonicalAuditRoute>
+                  <LazyRoute>
+                    <CanonicalAuditRoute expectedAuditType="vda65">
+                      <Vda65FindingsPage />
+                    </CanonicalAuditRoute>
+                  </LazyRoute>
                 )}
               />
               <Route
                 path="audits/:auditId/vda65/action-plan"
                 element={(
-                  <CanonicalAuditRoute expectedAuditType="vda65">
-                    <Vda65ActionPlanPage />
-                  </CanonicalAuditRoute>
+                  <LazyRoute>
+                    <CanonicalAuditRoute expectedAuditType="vda65">
+                      <Vda65ActionPlanPage />
+                    </CanonicalAuditRoute>
+                  </LazyRoute>
                 )}
               />
               <Route
                 path="audits/:auditId/vda65/report"
                 element={(
-                  <CanonicalAuditRoute expectedAuditType="vda65">
-                    <Vda65ReportPreviewPage />
-                  </CanonicalAuditRoute>
+                  <LazyRoute>
+                    <CanonicalAuditRoute expectedAuditType="vda65">
+                      <Vda65ReportPreviewPage />
+                    </CanonicalAuditRoute>
+                  </LazyRoute>
                 )}
               />
               <Route
                 path="audits/:auditId/:auditType/action-plan"
                 element={(
-                  <CanonicalAuditRoute>
-                    <GenericAuditActionPlanPage />
-                  </CanonicalAuditRoute>
+                  <LazyRoute>
+                    <CanonicalAuditRoute>
+                      <GenericAuditActionPlanPage />
+                    </CanonicalAuditRoute>
+                  </LazyRoute>
                 )}
               />
               <Route
                 path="audits/:auditId/:auditType/report"
                 element={(
-                  <CanonicalAuditRoute>
-                    <GenericAuditReportPage />
-                  </CanonicalAuditRoute>
+                  <LazyRoute>
+                    <CanonicalAuditRoute>
+                      <GenericAuditReportPage />
+                    </CanonicalAuditRoute>
+                  </LazyRoute>
                 )}
               />
               <Route
                 path="audits/:auditId/:auditType"
                 element={(
-                  <CanonicalAuditRoute>
-                    <GenericAuditInfoPage />
-                  </CanonicalAuditRoute>
+                  <LazyRoute>
+                    <CanonicalAuditRoute>
+                      <GenericAuditInfoPage />
+                    </CanonicalAuditRoute>
+                  </LazyRoute>
                 )}
               />
               <Route path="vda63" element={<Navigate to="/audits" replace />} />

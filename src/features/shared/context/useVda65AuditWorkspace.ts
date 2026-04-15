@@ -7,6 +7,7 @@ import type {
   Vda65ChecklistStatus,
 } from '../../../types/audit'
 import { useAuditWorkspace } from './useAuditWorkspace'
+import { createAuditHistoryEntry, describeActionPlanItem } from '../../../utils/traceability'
 
 function updateListItem<T extends { id: string }>(items: T[], id: string, patch: Partial<T>) {
   return items.map((item) => (item.id === id ? { ...item, ...patch } : item))
@@ -114,10 +115,20 @@ export function useVda65AuditWorkspace() {
       }))
     },
     saveActionPlanItem: (id: string) => {
-      workspace.updateAuditRecord(audit.id, (current) => ({
-        ...current,
-        actions: updateListItem<ActionPlanItem>(current.actions, id, { savedAt: new Date().toISOString() }),
-      }))
+      workspace.updateAuditRecord(audit.id, (current) => {
+        const action = current.actions.find((item) => item.id === id)
+
+        return {
+          ...current,
+          actions: updateListItem<ActionPlanItem>(current.actions, id, { savedAt: new Date().toISOString() }),
+          history: action
+            ? [
+                ...current.history,
+                createAuditHistoryEntry('action updated', `Action updated: ${describeActionPlanItem(action)}.`),
+              ]
+            : current.history,
+        }
+      })
     },
   }
 }

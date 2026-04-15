@@ -4,9 +4,11 @@ import { vda65AuditInfo, vda65Checklist, vda65ChecklistTemplate, vda65ProductInf
 import { getAuditStandardLabel } from '../../../data/auditTypes'
 import { vda63QuestionBank } from '../../vda63/data/questionBank'
 import { chapterOrder } from '../../../utils/auditUtils'
+import { createAuditHistoryEntry, createAuditReferenceId, DEFAULT_AUDIT_ACTOR } from '../../../utils/traceability'
 import type {
   ActionPlanItem,
   AuditInfo,
+  AuditHistoryEntry,
   AuditRecord,
   AuditType,
   GenericAuditReportItem,
@@ -19,6 +21,7 @@ import type {
   Vda65ChecklistItem,
 } from '../../../types/audit'
 import { summarizeAuditRecord, getAuditTypeLabel } from './auditSummary'
+import { resolveAuditLifecycleStatus } from './auditWorkflow'
 
 function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T
@@ -42,6 +45,15 @@ function createId(prefix = 'audit') {
 
 function createTimestamp() {
   return new Date().toISOString()
+}
+
+function createRolePlaceholders(owner = '') {
+  return {
+    owner,
+    reviewer: 'Quality Review Board',
+    approver: 'Plant Management',
+    lastModifiedBy: DEFAULT_AUDIT_ACTOR,
+  }
 }
 
 export function createAuditRouteId(auditType: AuditType, auditDate: string, existingIds: Iterable<string> = []) {
@@ -294,13 +306,29 @@ function withReportItemIds(items: GenericAuditReportItem[]) {
 
 export function normalizeAuditRecordShape(record: AuditRecord): AuditRecord {
   const standard = record.standard ?? getAuditStandardLabel(record.auditType)
+  const createdAt = record.createdAt ?? createTimestamp()
+  const updatedAt = record.updatedAt ?? createdAt
+  const auditId = record.auditId ?? createAuditReferenceId(record.auditDate || createdAt.slice(0, 10))
+  const updatedBy = record.updatedBy ?? DEFAULT_AUDIT_ACTOR
+  const roles = createRolePlaceholders(record.owner ?? record.auditor ?? record.data.auditInfo.auditor ?? '')
+  const history: AuditHistoryEntry[] =
+    Array.isArray(record.history) && record.history.length
+      ? record.history
+      : [createAuditHistoryEntry('created', 'Audit record created.', createdAt, updatedBy)]
 
   if (record.auditType === 'vda65') {
     return {
       ...record,
+      auditId,
       legacyIds: Array.isArray(record.legacyIds) ? [...new Set(record.legacyIds.filter(Boolean))] : [],
       standard,
       planRecordId: record.planRecordId ?? null,
+      ...roles,
+      createdAt,
+      updatedAt,
+      updatedBy,
+      lastModifiedBy: record.lastModifiedBy ?? updatedBy,
+      history,
       data: {
         auditInfo: {
           ...createBlankAuditInfo(vda65AuditInfo),
@@ -320,9 +348,16 @@ export function normalizeAuditRecordShape(record: AuditRecord): AuditRecord {
 
     return {
       ...record,
+      auditId,
       legacyIds: Array.isArray(record.legacyIds) ? [...new Set(record.legacyIds.filter(Boolean))] : [],
       standard,
       planRecordId: record.planRecordId ?? null,
+      ...roles,
+      createdAt,
+      updatedAt,
+      updatedBy,
+      lastModifiedBy: record.lastModifiedBy ?? updatedBy,
+      history,
       actions: synchronizeGenericAuditActions(reportItems, record.actions, record.auditType),
       data: {
         auditInfo: {
@@ -350,9 +385,16 @@ export function normalizeAuditRecordShape(record: AuditRecord): AuditRecord {
 
   return {
     ...record,
+    auditId,
     legacyIds: Array.isArray(record.legacyIds) ? [...new Set(record.legacyIds.filter(Boolean))] : [],
     standard,
     planRecordId: record.planRecordId ?? null,
+    ...roles,
+    createdAt,
+    updatedAt,
+    updatedBy,
+    lastModifiedBy: record.lastModifiedBy ?? updatedBy,
+    history,
     data: {
       auditInfo: record.data.auditInfo,
       responses:
@@ -365,26 +407,38 @@ export function normalizeAuditRecordShape(record: AuditRecord): AuditRecord {
   }
 }
 
-export function createAuditRecord(auditType: AuditType, existingIds: Iterable<string> = []): AuditRecord {
+export function createAuditRecord(
+  auditType: AuditType,
+  existingIds: Iterable<string> = [],
+  existingAuditIds: Iterable<string> = [],
+  providedAuditId?: string,
+): AuditRecord {
   const now = createTimestamp()
   const routeId = createAuditRouteId(auditType, now.slice(0, 10), existingIds)
+  const auditId = providedAuditId ?? createAuditReferenceId(now.slice(0, 10), existingAuditIds)
+  const history = [createAuditHistoryEntry('created', 'Audit record created.', now)]
 
   const record: AuditRecord =
     auditType === 'vda63'
       ? {
           id: routeId,
+          auditId,
           auditType,
           standard: 'VDA 6.3',
           planRecordId: null,
           title: createTitle(auditType),
+          ...createRolePlaceholders(),
           site: '',
           auditor: '',
           auditDate: now.slice(0, 10),
           status: 'Not started',
           createdAt: now,
           updatedAt: now,
+          updatedBy: DEFAULT_AUDIT_ACTOR,
+          lastModifiedBy: DEFAULT_AUDIT_ACTOR,
           summary: { progressPercent: 0 },
           actions: [],
+          history,
           data: {
             auditInfo: createBlankAuditInfo(vda63AuditInfo),
             responses: createBlankVda63Responses(),
@@ -395,18 +449,23 @@ export function createAuditRecord(auditType: AuditType, existingIds: Iterable<st
       : auditType === 'vda65'
         ? {
             id: routeId,
+            auditId,
             auditType,
             standard: 'VDA 6.5',
             planRecordId: null,
             title: createTitle(auditType),
+            ...createRolePlaceholders(),
             site: '',
             auditor: '',
             auditDate: now.slice(0, 10),
             status: 'Not started',
             createdAt: now,
             updatedAt: now,
+            updatedBy: DEFAULT_AUDIT_ACTOR,
+            lastModifiedBy: DEFAULT_AUDIT_ACTOR,
             summary: { progressPercent: 0 },
             actions: [],
+            history,
             data: {
               auditInfo: createBlankAuditInfo(vda65AuditInfo),
               productInfo: createBlankProductInfo(vda65ProductInfo),
@@ -415,18 +474,23 @@ export function createAuditRecord(auditType: AuditType, existingIds: Iterable<st
           }
       : {
           id: routeId,
+          auditId,
           auditType,
           standard: getAuditStandardLabel(auditType),
           planRecordId: null,
           title: createTitle(auditType),
+          ...createRolePlaceholders(),
           site: '',
           auditor: '',
           auditDate: now.slice(0, 10),
           status: 'Not started',
           createdAt: now,
           updatedAt: now,
+          updatedBy: DEFAULT_AUDIT_ACTOR,
+          lastModifiedBy: DEFAULT_AUDIT_ACTOR,
           summary: { progressPercent: 0 },
           actions: [],
+          history,
           data: {
             auditInfo: createBlankAuditInfo(),
             reportSummary: '',
@@ -443,18 +507,23 @@ export function createSeedAuditRecords(): AuditRecord[] {
   const seedRecords: AuditRecord[] = [
     {
       id: createAuditRouteId('vda63', vda63AuditInfo.date),
+      auditId: 'AUD-2026-001',
       auditType: 'vda63',
       standard: 'VDA 6.3',
       planRecordId: null,
       title: 'North Alliance Process Readiness Audit',
+      ...createRolePlaceholders(vda63AuditInfo.auditor),
       site: vda63AuditInfo.site,
       auditor: vda63AuditInfo.auditor,
       auditDate: vda63AuditInfo.date,
       status: vda63AuditInfo.auditStatus,
       createdAt: now,
       updatedAt: now,
+      updatedBy: DEFAULT_AUDIT_ACTOR,
+      lastModifiedBy: DEFAULT_AUDIT_ACTOR,
       summary: { progressPercent: 0 },
       actions: withActionIds(actionPlanItems.filter((item) => item.auditType === 'vda63')),
+      history: [createAuditHistoryEntry('created', 'Seed audit loaded into the workspace.', now)],
       data: {
         auditInfo: clone(vda63AuditInfo),
         responses: clone(vda63SeedResponses),
@@ -464,18 +533,23 @@ export function createSeedAuditRecords(): AuditRecord[] {
     },
     {
       id: createAuditRouteId('vda65', vda65AuditInfo.date),
+      auditId: 'AUD-2026-002',
       auditType: 'vda65',
       standard: 'VDA 6.5',
       planRecordId: null,
       title: 'Sensor Control Module Product Audit',
+      ...createRolePlaceholders(vda65AuditInfo.auditor),
       site: vda65AuditInfo.site,
       auditor: vda65AuditInfo.auditor,
       auditDate: vda65AuditInfo.date,
       status: vda65AuditInfo.auditStatus,
       createdAt: now,
       updatedAt: now,
+      updatedBy: DEFAULT_AUDIT_ACTOR,
+      lastModifiedBy: DEFAULT_AUDIT_ACTOR,
       summary: { progressPercent: 0 },
       actions: withActionIds(actionPlanItems.filter((item) => item.auditType === 'vda65')),
+      history: [createAuditHistoryEntry('created', 'Seed audit loaded into the workspace.', now)],
       data: {
         auditInfo: clone(vda65AuditInfo),
         productInfo: clone(vda65ProductInfo),
@@ -487,19 +561,29 @@ export function createSeedAuditRecords(): AuditRecord[] {
   return seedRecords.map((record) => synchronizeAuditRecord(normalizeAuditRecordShape(record), record.updatedAt))
 }
 
-export function duplicateAuditRecord(record: AuditRecord, existingIds: Iterable<string> = []): AuditRecord {
+export function duplicateAuditRecord(
+  record: AuditRecord,
+  existingIds: Iterable<string> = [],
+  existingAuditIds: Iterable<string> = [],
+): AuditRecord {
   const now = createTimestamp()
   const duplicatedId = createAuditRouteId(record.auditType, record.auditDate || now.slice(0, 10), existingIds)
+  const auditId = createAuditReferenceId(record.auditDate || now.slice(0, 10), existingAuditIds)
   const duplicatedRecord: AuditRecord =
     record.auditType === 'vda63'
       ? ({
           ...clone(record),
           id: duplicatedId,
+          auditId,
           planRecordId: null,
           title: `${record.title} Copy`,
+          ...createRolePlaceholders(record.owner),
           createdAt: now,
           updatedAt: now,
+          updatedBy: DEFAULT_AUDIT_ACTOR,
+          lastModifiedBy: DEFAULT_AUDIT_ACTOR,
           actions: withActionIds(record.actions),
+          history: [createAuditHistoryEntry('created', `Audit duplicated from ${record.auditId}.`, now)],
           data: {
             auditInfo: clone(record.data.auditInfo),
             responses: clone(record.data.responses),
@@ -511,11 +595,16 @@ export function duplicateAuditRecord(record: AuditRecord, existingIds: Iterable<
         ? ({
           ...clone(record),
           id: duplicatedId,
+          auditId,
           planRecordId: null,
           title: `${record.title} Copy`,
+          ...createRolePlaceholders(record.owner),
           createdAt: now,
           updatedAt: now,
+          updatedBy: DEFAULT_AUDIT_ACTOR,
+          lastModifiedBy: DEFAULT_AUDIT_ACTOR,
           actions: withActionIds(record.actions),
+          history: [createAuditHistoryEntry('created', `Audit duplicated from ${record.auditId}.`, now)],
           data: {
             auditInfo: clone(record.data.auditInfo),
             productInfo: clone(record.data.productInfo),
@@ -525,11 +614,16 @@ export function duplicateAuditRecord(record: AuditRecord, existingIds: Iterable<
         : ({
             ...clone(record),
             id: duplicatedId,
+            auditId,
             planRecordId: null,
             title: `${record.title} Copy`,
+            ...createRolePlaceholders(record.owner),
             createdAt: now,
             updatedAt: now,
+            updatedBy: DEFAULT_AUDIT_ACTOR,
+            lastModifiedBy: DEFAULT_AUDIT_ACTOR,
             actions: withActionIds(record.actions),
+            history: [createAuditHistoryEntry('created', `Audit duplicated from ${record.auditId}.`, now)],
             data: {
               auditInfo: clone(record.data.auditInfo),
               reportSummary: record.data.reportSummary ?? '',
@@ -623,18 +717,32 @@ export function changeAuditRecordType(record: AuditRecord, targetType: AuditType
 
 export function synchronizeAuditRecord(record: AuditRecord, updatedAt = createTimestamp()): AuditRecord {
   const normalizedRecord = normalizeAuditRecordShape(record)
-  const auditInfo = normalizedRecord.data.auditInfo
+  const resolvedStatus = resolveAuditLifecycleStatus(normalizedRecord)
+  const auditInfo = {
+    ...normalizedRecord.data.auditInfo,
+    auditStatus: resolvedStatus,
+  }
+  const synchronizedRecord = {
+    ...normalizedRecord,
+    data: {
+      ...normalizedRecord.data,
+      auditInfo,
+    },
+  }
 
   return {
-    ...normalizedRecord,
-    standard: normalizedRecord.standard || getAuditStandardLabel(normalizedRecord.auditType),
+    ...synchronizedRecord,
+    standard: synchronizedRecord.standard || getAuditStandardLabel(synchronizedRecord.auditType),
     site: auditInfo.site,
     auditor: auditInfo.auditor,
+    owner: synchronizedRecord.owner || auditInfo.auditor,
     auditDate: auditInfo.date,
-    status: auditInfo.auditStatus,
+    status: resolvedStatus,
     updatedAt,
-    summary: summarizeAuditRecord(normalizedRecord),
-  }
+    updatedBy: synchronizedRecord.updatedBy || DEFAULT_AUDIT_ACTOR,
+    lastModifiedBy: synchronizedRecord.lastModifiedBy || synchronizedRecord.updatedBy || DEFAULT_AUDIT_ACTOR,
+    summary: summarizeAuditRecord(synchronizedRecord as AuditRecord),
+  } as AuditRecord
 }
 
 export function assignReadableAuditRouteIds(records: AuditRecord[]) {
