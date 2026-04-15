@@ -8,7 +8,7 @@ function getChapterRowClass(status: ReturnType<typeof buildVda63Summary>['chapte
 }
 
 export default function Vda63ReportPreviewPage() {
-  const { audit, actionPlanItems, chapterScope, vda63AuditInfo, vda63Participants, vda63Questions } = useVda63AuditWorkspace()
+  const { audit, actionPlanItems, auditTeam, chapterScope, vda63AuditInfo, vda63Questions } = useVda63AuditWorkspace()
   const summary = buildVda63Summary(vda63Questions, chapterScope)
   const keyFindings = vda63Questions.filter(
     (question) =>
@@ -26,6 +26,10 @@ export default function Vda63ReportPreviewPage() {
   const auditCarriedOutText = scopedChapters.length
     ? `The audit scope currently covers chapters ${scopedChapters.join(', ')}. Only completed in-scope chapters contribute to the formal A/B/C classification.`
     : 'No VDA 6.3 chapter is currently marked as in scope.'
+  const reportTeam = [
+    { id: 'lead-auditor', userName: vda63AuditInfo.auditor, role: 'Lead auditor' as const },
+    ...auditTeam,
+  ].filter((participant) => participant.userName)
 
   return (
     <div className="module-page">
@@ -44,8 +48,7 @@ export default function Vda63ReportPreviewPage() {
               { label: 'Site', value: vda63AuditInfo.site },
               { label: 'Auditor', value: vda63AuditInfo.auditor },
               { label: 'Audit date', value: vda63AuditInfo.date },
-              { label: 'Reference', value: vda63AuditInfo.reference },
-              { label: 'Department', value: vda63AuditInfo.department },
+              { label: 'Customer', value: vda63AuditInfo.customer || 'Not set' },
               { label: 'Scope', value: vda63AuditInfo.scope },
             ]}
           />
@@ -117,11 +120,12 @@ export default function Vda63ReportPreviewPage() {
         </div>
 
         <div className="grid grid-panels">
-          <Panel title="Participants" description="Key participants involved in the audit and review process.">
+          <Panel title="Audit team" description="Lead auditor, additional auditors, and observers involved in the audit.">
             <ul className="stack-list">
-              {vda63Participants.map((participant) => (
-                <li key={participant}>
-                  <strong>{participant}</strong>
+              {reportTeam.map((participant) => (
+                <li key={participant.id}>
+                  <strong>{participant.userName}</strong>
+                  <p>{participant.role}</p>
                 </li>
               ))}
             </ul>

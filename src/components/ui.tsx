@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
+import { SHOW_HELPER_TEXT } from '../config/uiPreferences'
 import { getAuditToneStyle, getAuditTypeFamilyLabel, getAuditTypeLabel } from '../data/auditTypes'
 import type { AuditType } from '../types/audit'
 import { getStatusDisplayLabel } from '../utils/statusDisplay'
@@ -15,16 +16,16 @@ type PanelProps = {
 }
 
 export function Panel({ title, description, children, actions, className, bodyClassName }: PanelProps) {
-  const hasCopy = Boolean(title || description)
+  const hasCopy = Boolean(title || (SHOW_HELPER_TEXT && description))
 
   return (
     <section className={`panel ${className ?? ''}`.trim()}>
-      {title || description || actions ? (
+      {title || (SHOW_HELPER_TEXT && description) || actions ? (
         <div className={`panel-header ${hasCopy ? '' : 'panel-header-actions-only'}`}>
           {hasCopy ? (
             <div className="panel-heading">
               {title ? <h2>{title}</h2> : null}
-              {description ? <p>{description}</p> : null}
+              {SHOW_HELPER_TEXT && description ? <p>{description}</p> : null}
             </div>
           ) : null}
           {actions ? <div className="panel-actions">{actions}</div> : null}
@@ -57,7 +58,7 @@ export function PageHeader({
       <div>
         {eyebrow ? <span className="section-eyebrow" style={eyebrowTone ? getAuditToneStyle(eyebrowTone, 'strong') : undefined}>{eyebrow}</span> : null}
         {title ? <h1>{title}</h1> : null}
-        {subtitle ? <p className="section-subtitle">{subtitle}</p> : null}
+        {SHOW_HELPER_TEXT && subtitle ? <p className="section-subtitle">{subtitle}</p> : null}
       </div>
       {actions || canGoBack ? (
         <div className="section-header-actions">
@@ -87,21 +88,23 @@ export function PageHeader({
 export function AuditTypeBadge({
   auditType,
   label,
+  toneSource,
   size = 'medium',
   variant = 'soft',
 }: {
   auditType?: AuditType
   label?: string
+  toneSource?: AuditType | string
   size?: 'small' | 'medium'
   variant?: 'soft' | 'strong'
 }) {
   const resolvedLabel = label ?? (auditType ? (auditType === 'template' ? getAuditTypeLabel(auditType) : getAuditTypeFamilyLabel(auditType)) : 'Custom Audit')
-  const toneSource = auditType ?? resolvedLabel
+  const resolvedToneSource = toneSource ?? auditType ?? resolvedLabel
 
   return (
     <span
       className={`audit-type-badge audit-type-badge-${size} audit-type-badge-${variant}`}
-      style={getAuditToneStyle(toneSource, variant)}
+      style={getAuditToneStyle(resolvedToneSource, variant)}
     >
       {resolvedLabel}
     </span>
@@ -129,7 +132,7 @@ export function DashboardCard({
       <div className="dashboard-card-content">
         <span className="chip">{label}</span>
         <h3>{title}</h3>
-        <p>{description}</p>
+        {SHOW_HELPER_TEXT ? <p>{description}</p> : null}
         <div className="dashboard-card-stats">
           {stats.map((stat) => (
             <span key={stat}>{stat}</span>
@@ -218,7 +221,7 @@ export function EmptyState({ title, description }: { title: string; description:
   return (
     <div className="empty-state">
       <h3>{title}</h3>
-      <p>{description}</p>
+      {SHOW_HELPER_TEXT ? <p>{description}</p> : null}
     </div>
   )
 }
@@ -286,7 +289,7 @@ export function Modal({
         <div className="modal-header">
           <div>
             <h2>{title}</h2>
-            {description ? <p>{description}</p> : null}
+            {SHOW_HELPER_TEXT && description ? <p>{description}</p> : null}
           </div>
           <button type="button" className="button button-secondary button-small" onClick={onClose}>
             <ButtonLabel icon="close" label="Close" />

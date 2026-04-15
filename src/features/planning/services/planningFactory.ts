@@ -3,9 +3,14 @@ import type {
   AuditPlanCompletionResult,
   AuditPlanRecord,
   AuditPlanStatus,
+  PlanningActivityEntityType,
+  PlanningActivityLogEntry,
+  PlanningActorSnapshot,
   PlanningHistoryAction,
 } from '../../../types/planning'
 import { createAuditReferenceId, DEFAULT_PLANNING_ACTOR } from '../../../utils/traceability'
+
+const DEFAULT_PLANNING_POSITION = 'System'
 
 type PlanRecordInput = Omit<
   AuditPlanRecord,
@@ -29,12 +34,107 @@ export function createPlanningTimestamp() {
   return new Date().toISOString()
 }
 
-export function buildPlanHistoryEntry(action: PlanningHistoryAction, summary: string, timestamp = createPlanningTimestamp()): AuditPlanChangeHistoryEntry {
+export function resolvePlanningActor(actor?: Partial<PlanningActorSnapshot> | null): PlanningActorSnapshot {
+  return {
+    name: actor?.name?.trim() || DEFAULT_PLANNING_ACTOR,
+    position: actor?.position?.trim() || DEFAULT_PLANNING_POSITION,
+  }
+}
+
+export function buildPlanHistoryEntry(
+  action: PlanningHistoryAction,
+  summary: string,
+  timestamp = createPlanningTimestamp(),
+  actor?: Partial<PlanningActorSnapshot> | null,
+): AuditPlanChangeHistoryEntry {
+  const resolvedActor = resolvePlanningActor(actor)
+
   return {
     id: createId('plan-history'),
     timestamp,
     action,
     summary,
+    actorName: resolvedActor.name,
+    actorPosition: resolvedActor.position,
+  }
+}
+
+export function normalizePlanningHistoryEntry(entry: AuditPlanChangeHistoryEntry, fallbackAction: PlanningHistoryAction, fallbackSummary: string) {
+  const resolvedActor = resolvePlanningActor({
+    name: entry.actorName,
+    position: entry.actorPosition,
+  })
+
+  return {
+    id: entry.id ?? createId('plan-history'),
+    timestamp: entry.timestamp ?? createPlanningTimestamp(),
+    action: entry.action ?? fallbackAction,
+    summary: entry.summary ?? fallbackSummary,
+    actorName: resolvedActor.name,
+    actorPosition: resolvedActor.position,
+  } satisfies AuditPlanChangeHistoryEntry
+}
+
+export function createPlanningActivityEntry({
+  action,
+  summary,
+  entityType,
+  actor,
+  timestamp = createPlanningTimestamp(),
+  recordId,
+  recordTitle,
+  year,
+  checklistItemId,
+  checklistTitle,
+}: {
+  action: PlanningHistoryAction
+  summary: string
+  entityType: PlanningActivityEntityType
+  actor?: Partial<PlanningActorSnapshot> | null
+  timestamp?: string
+  recordId?: string | null
+  recordTitle?: string | null
+  year?: number | null
+  checklistItemId?: string | null
+  checklistTitle?: string | null
+}): PlanningActivityLogEntry {
+  const resolvedActor = resolvePlanningActor(actor)
+
+  return {
+    id: createId('planning-activity'),
+    timestamp,
+    action,
+    summary,
+    actorName: resolvedActor.name,
+    actorPosition: resolvedActor.position,
+    entityType,
+    recordId: recordId ?? null,
+    recordTitle: recordTitle ?? null,
+    year: year ?? null,
+    checklistItemId: checklistItemId ?? null,
+    checklistTitle: checklistTitle ?? null,
+  }
+}
+
+export function normalizePlanningActivityEntry(entry: PlanningActivityLogEntry): PlanningActivityLogEntry {
+  const resolvedActor = resolvePlanningActor({
+    name: entry.actorName,
+    position: entry.actorPosition,
+  })
+
+  return {
+    id: entry.id ?? createId('planning-activity'),
+    timestamp: entry.timestamp ?? createPlanningTimestamp(),
+    action: entry.action ?? 'Edited',
+    summary: entry.summary ?? 'Planning activity recorded.',
+    actorName: resolvedActor.name,
+    actorPosition: resolvedActor.position,
+    entityType: entry.entityType ?? 'Plan record',
+    recordId: entry.recordId ?? null,
+    recordTitle: entry.recordTitle ?? null,
+    year: entry.year ?? null,
+    checklistItemId: entry.checklistItemId ?? null,
+    checklistTitle: entry.checklistTitle ?? null,
   }
 }
 
@@ -78,15 +178,25 @@ export function normalizePlanningRecordShape(record: AuditPlanRecord): AuditPlan
     updatedBy: record.updatedBy ?? DEFAULT_PLANNING_ACTOR,
     changeHistory:
       Array.isArray(record.changeHistory) && record.changeHistory.length
-        ? record.changeHistory
+        ? record.changeHistory.map((entry) =>
+            normalizePlanningHistoryEntry(
+              entry,
+              record.source === 'seeded-excel' ? 'Imported' : 'Created',
+              'Planning record added to workspace.',
+            ))
         : [buildPlanHistoryEntry(record.source === 'seeded-excel' ? 'Imported' : 'Created', 'Planning record added to workspace.', record.createdAt ?? now)],
   }
 }
 
-export function createPlanRecord(input: PlanRecordInput, existingAuditIds: Iterable<string> = []): AuditPlanRecord {
+export function createPlanRecord(
+  input: PlanRecordInput,
+  existingAuditIds: Iterable<string> = [],
+  actor?: Partial<PlanningActorSnapshot> | null,
+): AuditPlanRecord {
   const timestamp = createPlanningTimestamp()
   const orderedDates = ensureDateOrder(input.plannedStart, input.plannedEnd)
   const derived = deriveYearMonth(orderedDates.plannedStart)
+  const resolvedActor = resolvePlanningActor(actor)
 
   return normalizePlanningRecordShape({
     ...input,
@@ -102,13 +212,18 @@ export function createPlanRecord(input: PlanRecordInput, existingAuditIds: Itera
     completionSummary: input.completionSummary ?? '',
     createdAt: timestamp,
     updatedAt: timestamp,
-    updatedBy: DEFAULT_PLANNING_ACTOR,
-    changeHistory: [buildPlanHistoryEntry('Created', 'Planned audit created.', timestamp)],
+    updatedBy: resolvedActor.name,
+    changeHistory: [buildPlanHistoryEntry('Created', 'Planned audit created.', timestamp, resolvedActor)],
   })
 }
 
-export function duplicatePlanRecord(source: AuditPlanRecord, existingAuditIds: Iterable<string> = []) {
+export function duplicatePlanRecord(
+  source: AuditPlanRecord,
+  existingAuditIds: Iterable<string> = [],
+  actor?: Partial<PlanningActorSnapshot> | null,
+) {
   const timestamp = createPlanningTimestamp()
+  const resolvedActor = resolvePlanningActor(actor)
 
   return normalizePlanningRecordShape({
     ...source,
@@ -122,11 +237,8 @@ export function duplicatePlanRecord(source: AuditPlanRecord, existingAuditIds: I
     completionSummary: '',
     createdAt: timestamp,
     updatedAt: timestamp,
-    updatedBy: DEFAULT_PLANNING_ACTOR,
-    changeHistory: [
-      ...source.changeHistory,
-      buildPlanHistoryEntry('Duplicated', `Planning record duplicated from ${source.title}.`, timestamp),
-    ],
+    updatedBy: resolvedActor.name,
+    changeHistory: [buildPlanHistoryEntry('Duplicated', `Planning record duplicated from ${source.title}.`, timestamp, resolvedActor)],
   })
 }
 
@@ -135,14 +247,16 @@ export function updatePlanWithHistory(
   updates: Partial<AuditPlanRecord>,
   action: PlanningHistoryAction,
   summary: string,
+  actor?: Partial<PlanningActorSnapshot> | null,
 ) {
   const timestamp = createPlanningTimestamp()
+  const resolvedActor = resolvePlanningActor(actor)
   const merged = normalizePlanningRecordShape({
     ...record,
     ...updates,
     updatedAt: timestamp,
-    updatedBy: updates.updatedBy ?? DEFAULT_PLANNING_ACTOR,
-    changeHistory: [...record.changeHistory, buildPlanHistoryEntry(action, summary, timestamp)],
+    updatedBy: updates.updatedBy ?? resolvedActor.name,
+    changeHistory: [...record.changeHistory, buildPlanHistoryEntry(action, summary, timestamp, resolvedActor)],
   })
 
   if (merged.status !== 'Completed') {

@@ -187,9 +187,10 @@ export function AppIcon({ name, className }: { name: AppIconName; className?: st
       return (
         <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false" className={resolvedClassName}>
           <IconStroke>
-            <path d="M4 6.25h12" />
-            <path d="M4 10h12" />
-            <path d="M4 13.75h12" />
+            <rect x="3.25" y="4" width="13.5" height="12" rx="3" />
+            <path d="M7 8h6" />
+            <path d="M7 10.75h6" />
+            <path d="M7 13.5h4.25" />
           </IconStroke>
         </svg>
       )

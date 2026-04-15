@@ -11,6 +11,10 @@ export default function ModuleSectionNav() {
   const detectedModule: AuditType | 'planning' | undefined = location.pathname.startsWith('/planning')
     ? 'planning'
     : activeAudit?.auditType
+  if (detectedModule === 'planning') {
+    return null
+  }
+
   const items = getModuleNavigation(detectedModule, auditId)
 
   if (!items.length) {

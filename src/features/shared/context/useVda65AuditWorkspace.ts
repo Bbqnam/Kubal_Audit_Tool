@@ -2,6 +2,7 @@ import type {
   ActionPlanItem,
   ActionPlanUpdatePatch,
   AuditInfo,
+  AuditParticipant,
   ProductInfo,
   Vda65ChecklistItem,
   Vda65ChecklistStatus,
@@ -25,6 +26,7 @@ export function useVda65AuditWorkspace() {
   return {
     ...workspace,
     vda65AuditInfo: audit.data.auditInfo,
+    auditTeam: audit.auditTeam,
     vda65ProductInfo: audit.data.productInfo,
     vda65Checklist: audit.data.checklist,
     actionPlanItems: audit.actions,
@@ -46,6 +48,18 @@ export function useVda65AuditWorkspace() {
               [field]: value,
             },
           },
+        }
+      })
+    },
+    updateAuditTeam: (auditTeam: AuditParticipant[]) => {
+      workspace.updateAuditRecord(audit.id, (current) => {
+        if (current.auditType !== 'vda65') {
+          return current
+        }
+
+        return {
+          ...current,
+          auditTeam,
         }
       })
     },

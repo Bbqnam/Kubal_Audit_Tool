@@ -1,44 +1,105 @@
-import { useRef, useState, type ChangeEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
+import ActivityLog from '../components/ActivityLog'
 import ExportCenter from '../components/ExportCenter'
 import { getAuditRecordHomePath } from '../data/navigation'
 import { auditStatusFilterOptions } from '../config/domain/statuses'
 import { useAuditLibrary } from '../features/shared/context/useAuditLibrary'
 import { isActionItemDelayed } from '../features/shared/services/auditWorkflow'
 import { parseImportFile } from '../features/shared/services/fileTransfer'
-import type { AuditRecord } from '../types/audit'
-import { formatDate, formatDateTime } from '../utils/dateUtils'
+import type { AuditLifecycleStatus, AuditRecord } from '../types/audit'
+import { compareDateOnly, formatDate, formatDateTime } from '../utils/dateUtils'
 import { exportAuditToExcel, exportAuditToPdf } from '../utils/exportUtils'
-import { AuditTypeBadge, MetricCard, PageHeader, Panel, StatusBadge } from '../components/ui'
+import { AuditTypeBadge, PageHeader, Panel } from '../components/ui'
 import { ButtonLabel } from '../components/icons'
+
+const auditLifecycleStatusOptions: AuditLifecycleStatus[] = ['Not started', 'In progress', 'Completed']
+const auditsPerPage = 10
+
+type AuditSortKey = 'auditId' | 'title' | 'type' | 'auditor' | 'auditDate' | 'status' | 'updatedAt' | 'preview'
+
+function compareText(left: string, right: string) {
+  return left.localeCompare(right, undefined, { numeric: true, sensitivity: 'base' })
+}
 
 export default function AuditsPage() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
-  const { audits, createAudit, deleteAudit, duplicateAudit, importAudits } = useAuditLibrary()
+  const { audits, auditLibraryHistory, createAudit, deleteAudit, importAudits, updateAuditRecord } = useAuditLibrary()
   const importInputRef = useRef<HTMLInputElement | null>(null)
   const [exportMessage, setExportMessage] = useState<string | null>(null)
   const [importMessage, setImportMessage] = useState<string | null>(null)
+  const [sortKey, setSortKey] = useState<AuditSortKey>('updatedAt')
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
+  const [currentPage, setCurrentPage] = useState(1)
   const statusFilter = searchParams.get('status') ?? 'all'
   const followUpFilter = searchParams.get('followUp') ?? 'all'
 
-  const filteredAudits = audits.filter((audit) => {
-    if (statusFilter !== 'all' && audit.status !== statusFilter) {
-      return false
-    }
+  const filteredAudits = useMemo(() => {
+    const nextAudits = audits.filter((audit) => {
+      if (statusFilter !== 'all' && audit.status !== statusFilter) {
+        return false
+      }
 
-    if (followUpFilter === 'delayed') {
-      return audit.actions.some((action) => isActionItemDelayed(action))
-    }
+      if (followUpFilter === 'delayed') {
+        return audit.actions.some((action) => isActionItemDelayed(action))
+      }
 
-    return true
-  })
+      return true
+    })
+
+    return [...nextAudits].sort((left, right) => {
+      const leftType = left.standard || 'Standard not set'
+      const rightType = right.standard || 'Standard not set'
+      const leftAuditor = left.auditor || 'Unassigned'
+      const rightAuditor = right.auditor || 'Unassigned'
+      const leftPreview = left.summary.resultPreview || left.summary.scorePreview || ''
+      const rightPreview = right.summary.resultPreview || right.summary.scorePreview || ''
+
+      const result = (() => {
+        switch (sortKey) {
+          case 'auditId':
+            return compareText(left.auditId, right.auditId)
+          case 'title':
+            return compareText(left.title, right.title)
+          case 'type':
+            return compareText(leftType, rightType)
+          case 'auditor':
+            return compareText(leftAuditor, rightAuditor)
+          case 'auditDate':
+            return compareDateOnly(left.auditDate, right.auditDate)
+          case 'status':
+            return compareText(left.status, right.status)
+          case 'updatedAt':
+            return compareText(left.updatedAt, right.updatedAt)
+          case 'preview':
+            return compareText(leftPreview, rightPreview)
+        }
+      })()
+
+      if (result !== 0) {
+        return sortDirection === 'asc' ? result : -result
+      }
+
+      return compareText(left.auditId, right.auditId)
+    })
+  }, [audits, followUpFilter, sortDirection, sortKey, statusFilter])
 
   const draftCount = filteredAudits.filter((audit) => audit.status !== 'Completed').length
   const completedCount = filteredAudits.filter((audit) => audit.status === 'Completed').length
   const activeFilterLabel = followUpFilter === 'delayed'
     ? 'Delayed follow-up'
     : auditStatusFilterOptions.find((option) => option.value === statusFilter)?.label ?? 'All audits'
+  const totalPages = Math.max(1, Math.ceil(filteredAudits.length / auditsPerPage))
+  const paginatedAudits = filteredAudits.slice((currentPage - 1) * auditsPerPage, currentPage * auditsPerPage)
+
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [statusFilter, followUpFilter])
+
+  useEffect(() => {
+    setCurrentPage((current) => Math.min(current, totalPages))
+  }, [totalPages])
 
   function handleCreateAudit() {
     const newAudit = createAudit('template')
@@ -47,14 +108,6 @@ export default function AuditsPage() {
 
   function handleOpenAudit(audit: AuditRecord) {
     navigate(getAuditRecordHomePath(audit))
-  }
-
-  function handleDuplicateAudit(id: string) {
-    const duplicatedRecord = duplicateAudit(id)
-
-    if (duplicatedRecord) {
-      navigate(getAuditRecordHomePath(duplicatedRecord))
-    }
   }
 
   function handleDeleteAudit(id: string, title: string) {
@@ -67,10 +120,13 @@ export default function AuditsPage() {
 
   async function handleExportAudit(audit: AuditRecord, format: 'excel' | 'pdf') {
     try {
+      const previewWindow = format === 'pdf' && typeof window !== 'undefined'
+        ? window.open('', '_blank', 'width=1180,height=920')
+        : null
       const result =
         format === 'excel'
           ? await exportAuditToExcel(audit.title, audit)
-          : await exportAuditToPdf(audit.title, audit)
+          : await exportAuditToPdf(audit.title, audit, previewWindow)
 
       setExportMessage(`${result.filename} prepared. ${result.message}`)
     } catch (error) {
@@ -116,52 +172,76 @@ export default function AuditsPage() {
     setSearchParams(nextParams, { replace: true })
   }
 
-  function clearFilters() {
-    setSearchParams({}, { replace: true })
+  function handleAuditStatusChange(id: string, nextStatus: AuditLifecycleStatus) {
+    updateAuditRecord(id, (current) => {
+      if (current.auditType === 'vda63') {
+        return {
+          ...current,
+          data: {
+            ...current.data,
+            auditInfo: {
+              ...current.data.auditInfo,
+              auditStatus: nextStatus,
+            },
+          },
+        }
+      }
+
+      if (current.auditType === 'vda65') {
+        return {
+          ...current,
+          data: {
+            ...current.data,
+            auditInfo: {
+              ...current.data.auditInfo,
+              auditStatus: nextStatus,
+            },
+          },
+        }
+      }
+
+      return {
+        ...current,
+        data: {
+          ...current.data,
+          auditInfo: {
+            ...current.data.auditInfo,
+            auditStatus: nextStatus,
+          },
+        },
+      }
+    })
+  }
+
+  function handleSort(nextKey: AuditSortKey) {
+    if (sortKey === nextKey) {
+      setSortDirection((current) => (current === 'asc' ? 'desc' : 'asc'))
+      return
+    }
+
+    setSortKey(nextKey)
+    setSortDirection(nextKey === 'updatedAt' ? 'desc' : 'asc')
+  }
+
+  function getSortIndicator(key: AuditSortKey) {
+    if (sortKey !== key) {
+      return ' '
+    }
+
+    return sortDirection === 'asc' ? '↑' : '↓'
   }
 
   return (
-    <div className="module-page">
+    <div className="module-page audit-library-page">
       <PageHeader
         eyebrow="Audit history"
         title="Audit library"
         subtitle={`Shared audit register with cleaner access to templates, saved records, exports, and follow-up work. Current view: ${activeFilterLabel}.`}
       />
 
-      <div className="metrics-grid">
-        <MetricCard label="Total audits" value={filteredAudits.length} />
-        <MetricCard label="Drafts" value={draftCount} tone="warning" />
-        <MetricCard label="Completed" value={completedCount} tone="success" />
-      </div>
-
       <Panel
-        title="Audit filters"
-        description="These route-based filters are used by dashboard drilldowns and can be shared directly."
-        actions={
-          statusFilter !== 'all' || followUpFilter !== 'all' ? (
-            <button type="button" className="button button-secondary button-small" onClick={clearFilters}>
-              <ButtonLabel icon="close" label="Clear filters" />
-            </button>
-          ) : null
-        }
-      >
-        <div className="calendar-pill-group">
-          {auditStatusFilterOptions.map((option) => (
-            <button
-              key={option.value}
-              type="button"
-              className={`calendar-pill ${(statusFilter === option.value && followUpFilter === 'all') || (option.value === 'delayed' && followUpFilter === 'delayed') ? 'calendar-pill-active' : ''}`}
-              onClick={() => handleFilterChange(option.value)}
-            >
-              {option.label}
-            </button>
-          ))}
-        </div>
-      </Panel>
-
-      <Panel
-        title="Create new audit"
-        description="Start from one template, then switch the record into the right audit workflow."
+        title="Saved audits"
+        description="Each record keeps its latest data, summary, and corrective-action set together."
         actions={
           <>
             <input
@@ -171,65 +251,96 @@ export default function AuditsPage() {
               onChange={(event) => void handleImportChange(event)}
               hidden
             />
-            <button type="button" className="button button-secondary" onClick={() => importInputRef.current?.click()}>
+            <button type="button" className="button button-secondary button-small" onClick={() => importInputRef.current?.click()}>
               <ButtonLabel icon="open" label="Import audit file" />
+            </button>
+            <button type="button" className="button button-primary button-small" onClick={handleCreateAudit}>
+              <ButtonLabel icon="add" label="New audit" />
             </button>
           </>
         }
       >
-        <div className="audit-create-grid">
-          <button type="button" className="audit-create-card audit-create-card-template" onClick={handleCreateAudit}>
-            <div className="audit-create-card-header">
-              <AuditTypeBadge label="Shared template" />
-              <span className="audit-create-standard">Choose the audit type inside the record</span>
+        <div className="audit-library-toolbar">
+          <div className="audit-library-summary-block" aria-label="Audit summary">
+            <div className="audit-library-summary-item">
+              <span>Total</span>
+              <strong>{filteredAudits.length}</strong>
             </div>
-            <strong>
-              <ButtonLabel icon="add" label="Open shared audit template" />
-            </strong>
-            <p>Use one consistent starting point, then move the record into the matching questionnaire or checklist flow.</p>
-          </button>
+            <div className="audit-library-summary-item">
+              <span>Drafts</span>
+              <strong>{draftCount}</strong>
+            </div>
+            <div className="audit-library-summary-item">
+              <span>Completed</span>
+              <strong>{completedCount}</strong>
+            </div>
+          </div>
+          <div className="audit-library-filter-strip">
+            <div className="calendar-pill-group">
+              {auditStatusFilterOptions.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  className={`calendar-pill ${(statusFilter === option.value && followUpFilter === 'all') || (option.value === 'delayed' && followUpFilter === 'delayed') ? 'calendar-pill-active' : ''}`}
+                  onClick={() => handleFilterChange(option.value)}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
-        {importMessage ? <p className="export-feedback">{importMessage}</p> : null}
-      </Panel>
-
-      <Panel title="Saved audits" description="Each record keeps its latest data, summary, and corrective-action set together.">
         <div className="table-card audit-library-table">
           <table>
             <thead>
               <tr>
-                <th>Title</th>
-                <th>Type</th>
-                <th>Site</th>
-                <th>Auditor</th>
-                <th>Audit date</th>
-                <th>Status</th>
-                <th>Last updated</th>
-                <th>Preview</th>
+                <th><button type="button" className="audit-library-header-button" onClick={() => handleSort('auditId')}>Audit ID <span>{getSortIndicator('auditId')}</span></button></th>
+                <th><button type="button" className="audit-library-header-button" onClick={() => handleSort('title')}>Title <span>{getSortIndicator('title')}</span></button></th>
+                <th><button type="button" className="audit-library-header-button" onClick={() => handleSort('type')}>Type <span>{getSortIndicator('type')}</span></button></th>
+                <th><button type="button" className="audit-library-header-button" onClick={() => handleSort('auditor')}>Auditor <span>{getSortIndicator('auditor')}</span></button></th>
+                <th><button type="button" className="audit-library-header-button" onClick={() => handleSort('auditDate')}>Audit date <span>{getSortIndicator('auditDate')}</span></button></th>
+                <th><button type="button" className="audit-library-header-button" onClick={() => handleSort('status')}>Status <span>{getSortIndicator('status')}</span></button></th>
+                <th><button type="button" className="audit-library-header-button" onClick={() => handleSort('updatedAt')}>Last updated <span>{getSortIndicator('updatedAt')}</span></button></th>
+                <th><button type="button" className="audit-library-header-button" onClick={() => handleSort('preview')}>Preview <span>{getSortIndicator('preview')}</span></button></th>
                 <th>Actions</th>
               </tr>
             </thead>
             <tbody>
-              {filteredAudits.map((audit) => (
+              {paginatedAudits.map((audit) => (
                 <tr key={audit.id}>
+                  <td className="audit-library-id-cell">
+                    <strong>{audit.auditId}</strong>
+                  </td>
                   <td>
                     <div className="planning-table-title audit-library-primary">
                       <button type="button" className="dashboard-table-link audit-library-link" onClick={() => handleOpenAudit(audit)}>
                         {audit.title}
                       </button>
-                      <span>{audit.summary.resultPreview ?? `${audit.summary.progressPercent}% complete`}</span>
                     </div>
                   </td>
                   <td>
                     <AuditTypeBadge
-                      auditType={audit.auditType}
                       label={audit.standard || 'Standard not set'}
+                      toneSource={audit.standard || audit.auditType}
                       size="small"
                     />
                   </td>
-                  <td>{audit.site || 'Unassigned'}</td>
                   <td>{audit.auditor || 'Unassigned'}</td>
                   <td>{formatDate(audit.auditDate)}</td>
-                  <td><StatusBadge value={audit.status} /></td>
+                  <td>
+                    <select
+                      className={`audit-library-status-select status-${audit.status.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`}
+                      value={audit.status}
+                      onChange={(event) => handleAuditStatusChange(audit.id, event.target.value as AuditLifecycleStatus)}
+                      aria-label={`Change status for ${audit.title}`}
+                    >
+                      {auditLifecycleStatusOptions.map((option) => (
+                        <option key={option} value={option}>
+                          {option}
+                        </option>
+                      ))}
+                    </select>
+                  </td>
                   <td>{formatDateTime(audit.updatedAt)}</td>
                   <td>
                     <div className="audit-preview-cell">
@@ -247,15 +358,6 @@ export default function AuditsPage() {
                         title="Open audit"
                       >
                         <ButtonLabel icon="open" label={`Open ${audit.title}`} hideLabel />
-                      </button>
-                      <button
-                        type="button"
-                        className="button button-secondary button-small button-icon-only"
-                        onClick={() => handleDuplicateAudit(audit.id)}
-                        aria-label={`Duplicate ${audit.title}`}
-                        title="Duplicate audit"
-                      >
-                        <ButtonLabel icon="duplicate" label={`Duplicate ${audit.title}`} hideLabel />
                       </button>
                       <button
                         type="button"
@@ -282,7 +384,56 @@ export default function AuditsPage() {
             </tbody>
           </table>
         </div>
+        {filteredAudits.length > auditsPerPage ? (
+          <div className="audit-library-pagination" aria-label="Audit library pagination">
+            <button
+              type="button"
+              className="button button-secondary button-small"
+              onClick={() => setCurrentPage((current) => Math.max(1, current - 1))}
+              disabled={currentPage === 1}
+            >
+              <ButtonLabel icon="back" label="Previous" />
+            </button>
+            <div className="audit-library-pagination-pages">
+              {Array.from({ length: totalPages }, (_, index) => {
+                const page = index + 1
+                return (
+                  <button
+                    key={page}
+                    type="button"
+                    className={`audit-library-page-chip${page === currentPage ? ' is-active' : ''}`}
+                    onClick={() => setCurrentPage(page)}
+                    aria-current={page === currentPage ? 'page' : undefined}
+                  >
+                    {page}
+                  </button>
+                )
+              })}
+            </div>
+            <button
+              type="button"
+              className="button button-secondary button-small"
+              onClick={() => setCurrentPage((current) => Math.min(totalPages, current + 1))}
+              disabled={currentPage === totalPages}
+            >
+              <ButtonLabel icon="next" label="Next" />
+            </button>
+          </div>
+        ) : null}
+        {importMessage ? <p className="export-feedback">{importMessage}</p> : null}
         {exportMessage ? <p className="export-feedback">{exportMessage}</p> : null}
+      </Panel>
+
+      <Panel
+        title="Library activity log"
+        description="Tracks top-level created, edited, duplicated, imported, or deleted audit records across the audit library."
+      >
+        <ActivityLog
+          history={auditLibraryHistory}
+          emptyTitle="No audit library activity recorded yet."
+          emptyDescription="Top-level audit library changes will appear here automatically."
+          variant="library"
+        />
       </Panel>
 
       <ExportCenter

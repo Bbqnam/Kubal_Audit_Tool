@@ -1,5 +1,12 @@
 import { Link, useNavigate } from 'react-router-dom'
-import { useState, type FocusEvent as ReactFocusEvent, type MouseEvent as ReactMouseEvent } from 'react'
+import {
+  useLayoutEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type FocusEvent as ReactFocusEvent,
+  type MouseEvent as ReactMouseEvent,
+} from 'react'
 import { AuditTypeBadge, PageHeader, StatusBadge } from '../components/ui'
 import { ButtonLabel } from '../components/icons'
 import { dashboardStatusColors } from '../config/domain/colors'
@@ -7,7 +14,7 @@ import { getStandardToneKey } from '../config/domain/standards'
 import { getAuditRecordHomePath, getPlanningCalendarPath } from '../data/navigation'
 import { getAuditTypeLabel } from '../features/shared/services/auditSummary'
 import { isActionItemDelayed, summarizeOpenActionItems } from '../features/shared/services/auditWorkflow'
-import { getAuditTypeFamilyLabel, getAuditWorkspaceKind } from '../data/auditTypes'
+import { getAuditWorkspaceKind } from '../data/auditTypes'
 import { useAuditLibrary } from '../features/shared/context/useAuditLibrary'
 import {
   getDerivedPlanStatus,
@@ -93,6 +100,21 @@ function getMonthDensityLevel(count: number, maxCount: number) {
   }
 
   return '1'
+}
+
+function isPastPlanningMonth(year: number, month: number, referenceDate = new Date()) {
+  const referenceYear = referenceDate.getFullYear()
+  const referenceMonth = referenceDate.getMonth() + 1
+
+  if (year < referenceYear) {
+    return true
+  }
+
+  if (year > referenceYear) {
+    return false
+  }
+
+  return month < referenceMonth
 }
 
 function formatTimeOnly(value: string) {
@@ -218,6 +240,7 @@ function DashboardHelpButton({ text }: { text: string }) {
 export default function Dashboard() {
   const navigate = useNavigate()
   const { audits, planningRecords, createAudit } = useAuditLibrary()
+  const calendarPanelRef = useRef<HTMLElement | null>(null)
   const planningYears = getPlanningYears(planningRecords)
   const currentDate = new Date()
   const fallbackYear = new Date().getFullYear()
@@ -230,6 +253,7 @@ export default function Dashboard() {
   const [portfolioMonth, setPortfolioMonth] = useState<number | 'all'>('all')
   const [portfolioHoverStatus, setPortfolioHoverStatus] = useState<string | null>(null)
   const [portfolioHoverCardPosition, setPortfolioHoverCardPosition] = useState<{ left: number; top: number } | null>(null)
+  const [mainGridPanelHeight, setMainGridPanelHeight] = useState<number | null>(null)
   
   const portfolioYearPlans = getPlansForYear(planningRecords, currentYear)
   const portfolioFilteredPlans = portfolioMonth === 'all'
@@ -244,6 +268,7 @@ export default function Dashboard() {
   const upcomingPlans = getUpcomingPlanningRecords(planningRecords, 90).slice(0, 7)
   const monthGroups = groupPlansByMonth(planningRecords, currentYear)
   const maxMonthLoad = Math.max(1, ...monthGroups.map((month) => month.records.length))
+  const monthGridSignature = monthGroups.map((month) => `${month.month}:${month.records.length}`).join('|')
 
   const openActionRecords = audits
     .flatMap((audit) =>
@@ -400,6 +425,67 @@ export default function Dashboard() {
     setPortfolioHoverStatus(null)
     setPortfolioHoverCardPosition(null)
   }
+
+  useLayoutEffect(() => {
+    if (typeof window === 'undefined') {
+      return
+    }
+
+    const calendarPanel = calendarPanelRef.current
+    if (!calendarPanel) {
+      return
+    }
+
+    const mediaQuery = window.matchMedia('(max-width: 1180px)')
+
+    const syncPanelHeight = () => {
+      if (mediaQuery.matches) {
+        setMainGridPanelHeight(null)
+        return
+      }
+
+      setMainGridPanelHeight(Math.ceil(calendarPanel.getBoundingClientRect().height))
+    }
+
+    syncPanelHeight()
+
+    if (typeof ResizeObserver === 'undefined') {
+      window.addEventListener('resize', syncPanelHeight)
+
+      return () => {
+        window.removeEventListener('resize', syncPanelHeight)
+      }
+    }
+
+    const resizeObserver = new ResizeObserver(() => {
+      syncPanelHeight()
+    })
+
+    resizeObserver.observe(calendarPanel)
+    window.addEventListener('resize', syncPanelHeight)
+
+    if (typeof mediaQuery.addEventListener === 'function') {
+      mediaQuery.addEventListener('change', syncPanelHeight)
+
+      return () => {
+        resizeObserver.disconnect()
+        window.removeEventListener('resize', syncPanelHeight)
+        mediaQuery.removeEventListener('change', syncPanelHeight)
+      }
+    }
+
+    mediaQuery.addListener(syncPanelHeight)
+
+    return () => {
+      resizeObserver.disconnect()
+      window.removeEventListener('resize', syncPanelHeight)
+      mediaQuery.removeListener(syncPanelHeight)
+    }
+  }, [monthGridSignature])
+
+  const timelinePanelStyle = mainGridPanelHeight
+    ? ({ '--dashboard-main-panel-height': `${mainGridPanelHeight}px` } as CSSProperties)
+    : undefined
 
   return (
     <div className="dashboard-page dashboard-control-center">
@@ -671,7 +757,7 @@ export default function Dashboard() {
       ) : null}
 
       <div className="dashboard-main-grid">
-        <section className="dashboard-widget dashboard-widget-calendar" aria-label="Audit density">
+        <section ref={calendarPanelRef} className="dashboard-widget dashboard-widget-calendar" aria-label="Audit density">
           <div className="dashboard-widget-header">
             <div className="dashboard-widget-heading">
               <span className="dashboard-widget-kicker">Audit Calendar</span>
@@ -683,20 +769,44 @@ export default function Dashboard() {
           <div className="dashboard-month-grid">
             {monthGroups.map((month) => {
               const monthStandards = [...new Set(month.records.map((record) => record.standard))].slice(0, 2)
+              const delayedRecords = month.records.filter((record) => getDashboardPlanStatus(record) === 'Overdue')
+              const delayedCount = delayedRecords.length
+              const showDelayedCount = isPastPlanningMonth(currentYear, month.month, currentDate)
+              const isCurrentMonth = currentYear === currentDate.getFullYear() && month.month === currentDate.getMonth() + 1
 
               return (
                 <Link
                   key={month.month}
                   to={getPlanningCalendarPath({ year: currentYear, month: month.month })}
-                  className={`dashboard-month-card dashboard-month-density-${getMonthDensityLevel(month.records.length, maxMonthLoad)}`}
+                  className={`dashboard-month-card dashboard-month-density-${getMonthDensityLevel(month.records.length, maxMonthLoad)} ${isCurrentMonth ? 'dashboard-month-card-current' : ''}`.trim()}
                 >
                   <div className="dashboard-month-head">
-                    <strong>{month.label}</strong>
-                    <span>{month.records.length}</span>
-                  </div>
-                  <div className="dashboard-month-status">
-                    <span>{month.records.filter((record) => getDashboardPlanStatus(record) === 'Overdue').length} delayed</span>
-                    <span>{month.records.filter((record) => getDashboardPlanStatus(record) === 'Upcoming').length} upcoming</span>
+                    <div className="dashboard-month-heading">
+                      <strong>{month.label}</strong>
+                      {showDelayedCount && delayedCount ? (
+                        <span className="dashboard-month-delay-hover" tabIndex={0} aria-label={`${delayedCount} delayed audits`}>
+                          <span className="dashboard-month-delay-bubble" aria-hidden="true">
+                            {delayedCount}
+                          </span>
+                          <span className="dashboard-month-delay-hover-card" aria-hidden="true">
+                            <span className="dashboard-month-delay-hover-title">Delayed audits</span>
+                            <span className="dashboard-month-delay-hover-list">
+                              {delayedRecords.slice(0, 4).map((record) => (
+                                <span key={record.id} className="dashboard-month-delay-hover-item">
+                                  <strong>{record.standard}</strong>
+                                  <span>{record.title}</span>
+                                  <time dateTime={record.plannedEnd}>Delayed since {formatDate(record.plannedEnd)}</time>
+                                </span>
+                              ))}
+                              {delayedRecords.length > 4 ? (
+                                <span className="dashboard-month-delay-hover-more">+{delayedRecords.length - 4} more delayed</span>
+                              ) : null}
+                            </span>
+                          </span>
+                        </span>
+                      ) : null}
+                    </div>
+                    <span className="dashboard-month-count">{month.records.length}</span>
                   </div>
                   <div className="dashboard-month-standards">
                     {monthStandards.length ? monthStandards.map((standard) => (
@@ -711,7 +821,7 @@ export default function Dashboard() {
           </div>
         </section>
 
-        <section className="dashboard-widget dashboard-widget-timeline" aria-label="Upcoming timeline">
+        <section className="dashboard-widget dashboard-widget-timeline" aria-label="Upcoming timeline" style={timelinePanelStyle}>
           <div className="dashboard-widget-header">
             <div className="dashboard-widget-heading">
               <span className="dashboard-widget-kicker">Upcoming Audits</span>
@@ -721,28 +831,38 @@ export default function Dashboard() {
             </Link>
           </div>
           <div className="dashboard-timeline-list">
-            {upcomingPlans.map((record) => (
-              <Link key={record.id} to={getPlanningLink(record, audits)} className="dashboard-timeline-item">
-                <div className={`dashboard-timeline-marker status-${getDashboardPlanStatus(record).toLowerCase().replace(/[^a-z0-9]+/g, '-')}`} />
-                <div className="dashboard-timeline-copy">
-                  <div className="dashboard-timeline-title">
-                    <strong>{record.title}</strong>
-                    <StatusBadge value={getDashboardPlanStatus(record)} />
+            {upcomingPlans.map((record) => {
+              const planStatus = getDashboardPlanStatus(record)
+              const planStatusKey = planStatus.toLowerCase().replace(/[^a-z0-9]+/g, '-')
+
+              return (
+                <Link
+                  key={record.id}
+                  to={getPlanningLink(record, audits)}
+                  className={`dashboard-timeline-item dashboard-timeline-item-${planStatusKey}`}
+                >
+                  <div className={`dashboard-timeline-marker status-${planStatusKey}`} />
+                  <div className="dashboard-timeline-copy">
+                    <div className="dashboard-timeline-title">
+                      <strong>{record.title}</strong>
+                    </div>
+                    <p>{record.owner} · {record.site}</p>
+                    <div className="dashboard-timeline-meta">
+                      <time className={`dashboard-timeline-date dashboard-timeline-date-${planStatusKey}`} dateTime={record.plannedStart}>
+                        {formatDate(record.plannedStart)}
+                      </time>
+                      <span>{getPlanWindowLabel(record)}</span>
+                      <span className={`dashboard-standard-chip dashboard-standard-${getStandardToneKey(record.standard)}`}>{record.standard}</span>
+                    </div>
+                    <div className="dashboard-timeline-trace">
+                      <span>{record.auditId}</span>
+                      <span>{record.updatedBy}</span>
+                      <span>{formatDate(record.updatedAt)}</span>
+                    </div>
                   </div>
-                  <p>{record.owner} · {record.site}</p>
-                  <div className="dashboard-timeline-meta">
-                    <span>{formatDate(record.plannedStart)}</span>
-                    <span>{getPlanWindowLabel(record)}</span>
-                    <span className={`dashboard-standard-chip dashboard-standard-${getStandardToneKey(record.standard)}`}>{record.standard}</span>
-                  </div>
-                  <div className="dashboard-timeline-trace">
-                    <span>{record.auditId}</span>
-                    <span>{record.updatedBy}</span>
-                    <span>{formatDate(record.updatedAt)}</span>
-                  </div>
-                </div>
-              </Link>
-            ))}
+                </Link>
+              )
+            })}
           </div>
         </section>
       </div>
@@ -770,15 +890,13 @@ export default function Dashboard() {
                   <StatusBadge value={getAuditDashboardStatus(audit)} />
                 </div>
                 <strong>{audit.title}</strong>
-                <p>{audit.standard || getAuditTypeLabel(audit.auditType)}</p>
                 <div className="dashboard-audit-meta">
-                  <span>{getAuditTypeFamilyLabel(audit.auditType)}</span>
+                  <span>{audit.owner || 'Owner TBD'}</span>
                   <span>{audit.site || 'Site TBD'}</span>
                   <DashboardMetaPill detail={`${formatDate(audit.updatedAt)} at ${formatTimeOnly(audit.updatedAt)}`} tone="slate" />
                 </div>
                 <div className="dashboard-audit-trace">
                   <span>{audit.auditId}</span>
-                  <span>{audit.owner || 'Owner TBD'}</span>
                   <span>{audit.updatedBy}</span>
                 </div>
                 <div className="dashboard-audit-progress">

@@ -1,4 +1,4 @@
-import type { AuditInfo, Vda63QuestionResponse } from '../types/audit'
+import type { AuditInfo, AuditParticipant, Vda63QuestionResponse } from '../types/audit'
 import { vda63QuestionBank } from '../features/vda63/data/questionBank'
 
 export const vda63AuditInfo: AuditInfo = {
@@ -13,11 +13,9 @@ export const vda63AuditInfo: AuditInfo = {
   notes: 'Workbook-backed VDA 6.3 audit template extracted from the public Excel source file.',
 }
 
-export const vda63Participants = [
-  'Clara Schmidt, Lead Auditor',
-  'Nora Feldmann, Operations Manager',
-  'Jonas Weber, Process Owner',
-  'Marta Kovac, Supplier Quality',
+export const vda63Participants: AuditParticipant[] = [
+  { id: 'participant-mehdi-h', userName: 'Mehdi H.', role: 'Auditor' },
+  { id: 'participant-marta-kovac', userName: 'Marta Kovac', role: 'Observer' },
 ]
 
 export const vda63SeedResponses: Vda63QuestionResponse[] = vda63QuestionBank.map((question) => ({

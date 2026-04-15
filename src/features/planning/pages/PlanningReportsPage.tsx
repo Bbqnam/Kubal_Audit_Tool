@@ -1,11 +1,13 @@
 import { useMemo } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { MetricCard, PageHeader, Panel, StatusBadge } from '../../../components/ui'
+import { MetricCard, Panel, StatusBadge } from '../../../components/ui'
 import { ButtonLabel } from '../../../components/icons'
-import { useAuditLibrary } from '../../shared/context/useAuditLibrary'
 import { getPlanningCalendarPath } from '../../../data/navigation'
+import { useAuditLibrary } from '../../shared/context/useAuditLibrary'
+import PlanningActivityFeed from '../components/PlanningActivityFeed'
+import PlanningPageHeader from '../components/PlanningPageHeader'
 import { formatDate } from '../../../utils/dateUtils'
-import { getDerivedPlanStatus, getOverduePlanningRecords, getStandardColorClass, getUpcomingPlanningRecords, summarizePlans, planningMonthLabels } from '../services/planningUtils'
+import { getDerivedPlanStatus, getStandardColorClass, summarizePlans, planningMonthLabels } from '../services/planningUtils'
 
 type AggregateRow = {
   label: string
@@ -15,7 +17,10 @@ type AggregateRow = {
   overdue: number
 }
 
-function buildAggregateRows<T extends string>(items: ReturnType<typeof useAuditLibrary>['planningRecords'], keySelector: (item: ReturnType<typeof useAuditLibrary>['planningRecords'][number]) => T) {
+function buildAggregateRows<T extends string>(
+  items: ReturnType<typeof useAuditLibrary>['planningRecords'],
+  keySelector: (item: ReturnType<typeof useAuditLibrary>['planningRecords'][number]) => T,
+) {
   const groups = new Map<string, AggregateRow>()
 
   items.forEach((item) => {
@@ -34,6 +39,7 @@ function buildAggregateRows<T extends string>(items: ReturnType<typeof useAuditL
 
 function CompletionBar({ completed, open, overdue, total }: { completed: number; open: number; overdue: number; total: number }) {
   const openNonOverdue = Math.max(0, open - overdue)
+
   return (
     <div className="report-completion-bar" aria-label="Completion">
       <div style={{ width: `${total ? (completed / total) * 100 : 0}%`, background: '#22c55e', height: '100%', borderRadius: 'inherit' }} />
@@ -58,8 +64,14 @@ function parseSearchMonth(value: string | null): number | 'all' {
 }
 
 export default function PlanningReportsPage() {
-  const { planningRecords } = useAuditLibrary()
-  const currentYear = new Date().getFullYear()
+  const { planningRecords, planningActivityLog } = useAuditLibrary()
+  const currentDate = new Date()
+  const today = currentDate.toISOString().slice(0, 10)
+  const horizonDate = new Date(currentDate)
+  horizonDate.setDate(horizonDate.getDate() + 45)
+  const next45DayIso = horizonDate.toISOString().slice(0, 10)
+
+  const currentYear = currentDate.getFullYear()
   const [searchParams, setSearchParams] = useSearchParams()
   const availableYears = useMemo(
     () => [...new Set(planningRecords.map((r) => r.year))].sort((left, right) => left - right),
@@ -70,25 +82,56 @@ export default function PlanningReportsPage() {
   const selectedYear = availableYears.includes(requestedYear) ? requestedYear : fallbackYear
   const selectedMonth = parseSearchMonth(searchParams.get('month'))
 
-  const filteredByYear = planningRecords.filter((r) => r.year === selectedYear)
+  const filteredByYear = planningRecords.filter((record) => record.year === selectedYear)
   const filteredRecords = selectedMonth === 'all'
     ? filteredByYear
-    : filteredByYear.filter((r) => r.month === selectedMonth)
+    : filteredByYear.filter((record) => record.month === selectedMonth)
 
-  const currentYearSummary = summarizePlans(filteredRecords)
-  const upcoming30 = getUpcomingPlanningRecords(planningRecords, 30)
-  const upcoming60 = getUpcomingPlanningRecords(planningRecords, 60)
-  const upcoming90 = getUpcomingPlanningRecords(planningRecords, 90)
-  const overduePlans = getOverduePlanningRecords(planningRecords)
-  const byStandard = buildAggregateRows(filteredRecords, (record) => record.standard)
-  const byClassification = buildAggregateRows(filteredRecords, (record) => record.internalExternal)
-  const byDepartment = buildAggregateRows(filteredRecords, (record) => `${record.department} / ${record.processArea}`)
+  const summary = summarizePlans(filteredRecords)
+  const delayedRecords = filteredRecords
+    .filter((record) => getDerivedPlanStatus(record) === 'Overdue')
+    .sort((left, right) => left.plannedEnd.localeCompare(right.plannedEnd))
+  const nextUpRecords = filteredRecords
+    .filter((record) => {
+      const status = getDerivedPlanStatus(record)
+      return status !== 'Completed' && status !== 'Cancelled' && record.plannedStart >= today && record.plannedStart <= next45DayIso
+    })
+    .sort((left, right) => left.plannedStart.localeCompare(right.plannedStart))
+  const byStandard = buildAggregateRows(filteredRecords, (record) => record.standard).slice(0, 8)
+  const byDepartment = buildAggregateRows(
+    filteredRecords,
+    (record) => `${record.department || 'Unassigned'} / ${record.processArea || 'General'}`,
+  ).slice(0, 6)
+  const completionRate = summary.total ? Math.round((summary.completed / summary.total) * 100) : 0
+  const filteredRecordIds = new Set(filteredRecords.map((record) => record.id))
+  const visibleActivityEntries = planningActivityLog
+    .filter((entry) => {
+      if (selectedMonth === 'all') {
+        return entry.year === selectedYear
+      }
 
-  const completionRate = currentYearSummary.total > 0
-    ? Math.round((currentYearSummary.completed / currentYearSummary.total) * 100)
-    : 0
+      return filteredRecordIds.has(entry.recordId ?? '')
+    })
+    .slice(0, 8)
 
-  const MONTH_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+  const monthLoadRows = planningMonthLabels.map((label, index) => {
+    const month = index + 1
+    const monthRecords = filteredByYear.filter((record) => record.month === month)
+    const monthSummary = summarizePlans(monthRecords)
+
+    return {
+      label,
+      month,
+      total: monthSummary.total,
+      completed: monthSummary.completed,
+      overdue: monthSummary.overdue,
+      focusCount: monthRecords.filter((record) => {
+        const status = getDerivedPlanStatus(record)
+        return status !== 'Completed' && status !== 'Cancelled'
+      }).length,
+    }
+  })
+  const maxMonthLoad = Math.max(...monthLoadRows.map((row) => row.total), 1)
 
   function updateFilters(nextYear: number, nextMonth: number | 'all') {
     const nextParams = new URLSearchParams(searchParams)
@@ -99,11 +142,11 @@ export default function PlanningReportsPage() {
 
   return (
     <div className="module-page planning-page">
-      <PageHeader
-        eyebrow="Audit planning"
+      <PlanningPageHeader
+        title="Reports"
+        subtitle="A cleaner planning report focused on workload, risk, ownership, and the major decisions taken."
       />
 
-      {/* Slicer row */}
       <div className="calendar-pill-nav report-slicer-row">
         <div className="calendar-pill-row report-slicer-group">
           <span className="calendar-pill-label">Year</span>
@@ -130,145 +173,148 @@ export default function PlanningReportsPage() {
             >
               All
             </button>
-            {MONTH_SHORT.map((label, idx) => (
+            {planningMonthLabels.map((label, idx) => (
               <button
                 key={label}
                 type="button"
                 className={`calendar-pill ${selectedMonth === idx + 1 ? 'calendar-pill-active' : ''}`}
                 onClick={() => updateFilters(selectedYear, idx + 1)}
               >
-                {label}
+                {label.slice(0, 3)}
               </button>
             ))}
           </div>
         </div>
       </div>
 
-      {/* KPI row */}
       <div className="metrics-grid planning-metrics-grid">
-        <MetricCard label={`${selectedYear}${selectedMonth !== 'all' ? ` · ${planningMonthLabels[(selectedMonth as number) - 1]}` : ''} planned`} value={currentYearSummary.total} />
-        <MetricCard label="Completed" value={`${currentYearSummary.completed} (${completionRate}%)`} tone="success" />
-        <MetricCard label="Open / in progress" value={currentYearSummary.planned + currentYearSummary.inProgress} tone="warning" />
-        <MetricCard label="Delayed" value={overduePlans.length} tone={overduePlans.length > 0 ? 'danger' : 'success'} />
+        <MetricCard label="Planned in scope" value={summary.total} />
+        <MetricCard label="Completion rate" value={`${completionRate}%`} tone={completionRate === 100 && summary.total ? 'success' : 'default'} />
+        <MetricCard label="Delayed" value={summary.overdue} tone={summary.overdue ? 'danger' : 'success'} />
+        <MetricCard label="Next 45 days" value={nextUpRecords.length} tone={nextUpRecords.length ? 'warning' : 'default'} />
       </div>
 
       <Panel
-        title="Look-ahead and delayed risk"
-        description="Upcoming demand and immediate schedule issues in one compact view."
-        actions={
-          <Link to={getPlanningCalendarPath({ year: selectedYear, month: selectedMonth === 'all' ? 1 : selectedMonth })} className="button button-secondary button-small">
+        title="Delivery pulse"
+        description="See how the year is loaded and what needs action first."
+        actions={(
+          <Link
+            to={getPlanningCalendarPath({ year: selectedYear, month: selectedMonth === 'all' ? currentDate.getMonth() + 1 : selectedMonth })}
+            className="button button-secondary button-small"
+          >
             <ButtonLabel icon="calendar" label="Open calendar" />
           </Link>
-        }
-        className="report-risk-panel"
+        )}
       >
-        <div className="report-risk-layout">
-          <div className="report-horizon-strip">
-            <div className="report-horizon-card report-horizon-card-compact">
-              <span className="report-horizon-num">{upcoming30.length}</span>
-              <span className="report-horizon-label">30 days</span>
-            </div>
-            <div className="report-horizon-card report-horizon-card-compact">
-              <span className="report-horizon-num">{upcoming60.length}</span>
-              <span className="report-horizon-label">60 days</span>
-            </div>
-            <div className="report-horizon-card report-horizon-card-compact">
-              <span className="report-horizon-num">{upcoming90.length}</span>
-              <span className="report-horizon-label">90 days</span>
-            </div>
+        <div className="report-pulse-layout">
+          <div className="report-month-load">
+            {monthLoadRows.map((row) => (
+              <div key={row.month} className={`report-month-load-row ${selectedMonth === row.month ? 'report-month-load-row-active' : ''}`}>
+                <div className="report-month-load-meta">
+                  <strong>{row.label}</strong>
+                  <span>{row.total ? `${row.total} planned · ${row.completed} done` : 'No audits planned'}</span>
+                </div>
+                <div className="report-month-load-bar">
+                  <div
+                    className="report-month-load-fill"
+                    style={{ width: `${row.total ? (row.total / maxMonthLoad) * 100 : 0}%` }}
+                  />
+                </div>
+                <div className="report-month-load-values">
+                  <span>{row.focusCount} open</span>
+                  {row.overdue ? <span className="report-month-load-alert">{row.overdue} delayed</span> : null}
+                </div>
+              </div>
+            ))}
           </div>
 
-          <div className="report-overdue-block">
-            <div className="report-overdue-summary">
-              <strong>{overduePlans.length ? `${overduePlans.length} delayed item${overduePlans.length > 1 ? 's' : ''}` : 'No delayed items'}</strong>
-              <span>{overduePlans.length ? 'Focus here first to keep the plan from drifting further.' : 'The current planning window is on track.'}</span>
-            </div>
-
-            <ul className="report-summary-list report-summary-list-compact planning-list">
-              {overduePlans.length ? overduePlans.slice(0, 4).map((record) => (
-                <li key={record.id}>
-                  <div>
-                    <strong>{record.title}</strong>
-                    <p>{record.department} · ended {formatDate(record.plannedEnd)}</p>
-                  </div>
-                  <div className="planning-report-row-actions">
+          <div className="report-attention-grid">
+            <section className="report-attention-card">
+              <div className="report-distribution-section-head">
+                <h3>Delayed items</h3>
+                <span>{delayedRecords.length}</span>
+              </div>
+              <ul className="report-summary-list report-summary-list-compact planning-list">
+                {delayedRecords.length ? delayedRecords.slice(0, 5).map((record) => (
+                  <li key={record.id}>
+                    <div>
+                      <strong>{record.title}</strong>
+                      <p>{record.department || record.processArea || 'Unassigned'} · due {formatDate(record.plannedEnd)}</p>
+                    </div>
                     <StatusBadge value="Overdue" />
-                    <Link to={getPlanningCalendarPath({ year: record.year, month: record.month, recordId: record.id })} className="button button-secondary button-small">
-                      <ButtonLabel icon="open" label="Open" />
-                    </Link>
-                  </div>
-                </li>
-              )) : (
-                <li>
-                  <div>
-                    <strong>No delayed items</strong>
-                    <p>The plan is currently on track.</p>
-                  </div>
-                  <StatusBadge value="Completed" />
-                </li>
-              )}
-            </ul>
+                  </li>
+                )) : (
+                  <li>
+                    <div>
+                      <strong>No delayed items</strong>
+                      <p>The selected reporting scope is currently on track.</p>
+                    </div>
+                    <StatusBadge value="Completed" />
+                  </li>
+                )}
+              </ul>
+            </section>
+
+            <section className="report-attention-card">
+              <div className="report-distribution-section-head">
+                <h3>Coming up next</h3>
+                <span>{nextUpRecords.length}</span>
+              </div>
+              <ul className="report-summary-list report-summary-list-compact planning-list">
+                {nextUpRecords.length ? nextUpRecords.slice(0, 5).map((record) => (
+                  <li key={record.id}>
+                    <div>
+                      <strong>{record.title}</strong>
+                      <p>{record.owner || 'Owner TBD'} · starts {formatDate(record.plannedStart)}</p>
+                    </div>
+                    <StatusBadge value={getDerivedPlanStatus(record)} />
+                  </li>
+                )) : (
+                  <li>
+                    <div>
+                      <strong>No near-term load</strong>
+                      <p>No open audits are due to start within the next 45 days in this scope.</p>
+                    </div>
+                    <StatusBadge value="Planned" />
+                  </li>
+                )}
+              </ul>
+            </section>
           </div>
         </div>
       </Panel>
 
       <Panel
-        title="Distribution snapshot"
-        description="Standards, programme split, and department load in one tighter view."
-        className="report-distribution-panel"
+        title="Coverage and ownership"
+        description="Keep the report to the programme split and the teams carrying the load."
       >
         <div className="report-distribution-layout">
-          <div className="report-distribution-main">
-            <section className="report-distribution-section">
-              <div className="report-distribution-section-head">
-                <h3>By audit standard</h3>
-                <span>{byStandard.length} standards</span>
-              </div>
-              <div className="report-standard-grid">
-                {byStandard.map((row) => (
-                  <div key={row.label} className="report-standard-row report-standard-row-compact">
-                    <div className="report-standard-header">
-                      <span className={`planning-distribution-standard ${getStandardColorClass(row.label)}`}>{row.label}</span>
-                      <div className="report-standard-chips">
-                        <span className="planning-distribution-chip planning-distribution-chip-success">{row.completed}</span>
-                        <span className="planning-distribution-chip planning-distribution-chip-open">{row.open - row.overdue}</span>
-                        {row.overdue > 0 ? <span className="planning-distribution-chip planning-distribution-chip-danger">{row.overdue}</span> : null}
-                        <strong>{row.total > 0 ? Math.round((row.completed / row.total) * 100) : 0}%</strong>
-                      </div>
+          <section className="report-distribution-section">
+            <div className="report-distribution-section-head">
+              <h3>By audit standard</h3>
+              <span>{byStandard.length} visible</span>
+            </div>
+            <div className="report-standard-grid report-standard-grid-single">
+              {byStandard.map((row) => (
+                <div key={row.label} className="report-standard-row report-standard-row-compact">
+                  <div className="report-standard-header">
+                    <span className={`planning-distribution-standard ${getStandardColorClass(row.label)}`}>{row.label}</span>
+                    <div className="report-standard-chips">
+                      <span className="planning-distribution-chip planning-distribution-chip-success">{row.completed} done</span>
+                      <span className="planning-distribution-chip planning-distribution-chip-open">{Math.max(0, row.open - row.overdue)} open</span>
+                      {row.overdue > 0 ? <span className="planning-distribution-chip planning-distribution-chip-danger">{row.overdue} delayed</span> : null}
                     </div>
-                    <CompletionBar {...row} />
                   </div>
-                ))}
-              </div>
-            </section>
-
-            <section className="report-distribution-section">
-              <div className="report-distribution-section-head">
-                <h3>By classification</h3>
-                <span>{byClassification.length} groups</span>
-              </div>
-              <div className="report-standard-grid report-standard-grid-classification">
-                {byClassification.map((row) => (
-                  <div key={row.label} className="report-standard-row report-standard-row-compact">
-                    <div className="report-standard-header">
-                      <span>{row.label}</span>
-                      <div className="report-standard-chips">
-                        <span className="planning-distribution-chip">{row.total} total</span>
-                        {row.overdue > 0 ? <span className="planning-distribution-chip planning-distribution-chip-danger">{row.overdue} delayed</span> : null}
-                        <strong>{row.total > 0 ? Math.round((row.completed / row.total) * 100) : 0}%</strong>
-                      </div>
-                    </div>
-                    <CompletionBar {...row} />
-                  </div>
-                ))}
-              </div>
-            </section>
-          </div>
+                  <CompletionBar {...row} />
+                </div>
+              ))}
+            </div>
+          </section>
 
           <section className="report-distribution-section report-distribution-section-side">
             <div className="report-distribution-section-head">
-              <h3>By department</h3>
-              <span>{byDepartment.length} rows</span>
+              <h3>Top departments / areas</h3>
+              <span>{byDepartment.length} visible</span>
             </div>
             <div className="report-department-list">
               {byDepartment.map((row) => (
@@ -276,11 +322,11 @@ export default function PlanningReportsPage() {
                   <div className="planning-distribution-heading">
                     <div className="planning-distribution-title">
                       <strong>{row.label}</strong>
-                      <span>{row.total} total in selected period</span>
+                      <span>{row.total} audits in selected scope</span>
                     </div>
                     <div className="planning-distribution-metrics">
-                      <span className="planning-distribution-chip">{row.total} total</span>
                       <span className="planning-distribution-chip planning-distribution-chip-success">{row.completed} done</span>
+                      <span className="planning-distribution-chip">{Math.max(0, row.open - row.overdue)} open</span>
                       {row.overdue > 0 ? <span className="planning-distribution-chip planning-distribution-chip-danger">{row.overdue} delayed</span> : null}
                     </div>
                   </div>
@@ -290,6 +336,13 @@ export default function PlanningReportsPage() {
             </div>
           </section>
         </div>
+      </Panel>
+
+      <Panel
+        title="Recent planning activity"
+        description="Major planning changes only: completion, deletion, rescheduling, linking, yearly checklist updates, and year-horizon changes."
+      >
+        <PlanningActivityFeed entries={visibleActivityEntries} />
       </Panel>
     </div>
   )

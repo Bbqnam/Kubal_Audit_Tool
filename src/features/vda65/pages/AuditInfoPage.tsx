@@ -1,15 +1,17 @@
 import { Link } from 'react-router-dom'
 import ActivityLog from '../../../components/ActivityLog'
+import AuditTeamEditor from '../../../components/AuditTeamEditor'
 import ExportCenter from '../../../components/ExportCenter'
 import { ButtonLabel } from '../../../components/icons'
 import MetadataSection from '../../../components/MetadataSection'
+import WorkspaceUserSelect from '../../../components/WorkspaceUserSelect'
 import { getAuditSectionPath } from '../../../data/navigation'
 import { DetailList, Field, MetricCard, PageHeader, Panel } from '../../../components/ui'
 import { useVda65AuditWorkspace } from '../../shared/context/useVda65AuditWorkspace'
 import { getAuditInfoMetadataItems, getAuditInfoMetadataNote } from '../../../utils/traceability'
 
 export default function Vda65AuditInfoPage() {
-  const { audit, updateAuditInfo, updateAuditTitle, vda65AuditInfo, vda65Checklist } = useVda65AuditWorkspace()
+  const { audit, users, auditTeam, updateAuditInfo, updateAuditTeam, updateAuditTitle, vda65AuditInfo, vda65Checklist } = useVda65AuditWorkspace()
 
   return (
     <div className="module-page">
@@ -27,7 +29,20 @@ export default function Vda65AuditInfoPage() {
       </div>
 
       <div className="form-grid">
-        <Panel title="Audit details" description="Core metadata for the current product audit record.">
+        <Panel
+          title="Audit details"
+          description="Core metadata for the current product audit record."
+          actions={
+            <label className="panel-inline-field">
+              <span>Audit status</span>
+              <select value={vda65AuditInfo.auditStatus} onChange={(event) => updateAuditInfo('auditStatus', event.target.value)}>
+                <option value="Not started">Not started</option>
+                <option value="In progress">In progress</option>
+                <option value="Completed">Completed</option>
+              </select>
+            </label>
+          }
+        >
           <div className="input-grid">
             <Field label="Audit title">
               <input value={audit.title} onChange={(event) => updateAuditTitle(event.target.value)} />
@@ -35,33 +50,29 @@ export default function Vda65AuditInfoPage() {
             <Field label="Site">
               <input value={vda65AuditInfo.site} onChange={(event) => updateAuditInfo('site', event.target.value)} />
             </Field>
-            <Field label="Auditor">
-              <input value={vda65AuditInfo.auditor} onChange={(event) => updateAuditInfo('auditor', event.target.value)} />
+            <Field label="Lead auditor">
+              <WorkspaceUserSelect users={users} value={vda65AuditInfo.auditor} onChange={(value) => updateAuditInfo('auditor', value)} placeholder="Select lead auditor" />
             </Field>
             <Field label="Audit date">
               <input type="date" value={vda65AuditInfo.date} onChange={(event) => updateAuditInfo('date', event.target.value)} />
             </Field>
-            <Field label="Reference">
-              <input value={vda65AuditInfo.reference} onChange={(event) => updateAuditInfo('reference', event.target.value)} />
-            </Field>
-            <Field label="Department">
-              <input value={vda65AuditInfo.department} onChange={(event) => updateAuditInfo('department', event.target.value)} />
-            </Field>
             <Field label="Customer">
               <input value={vda65AuditInfo.customer ?? ''} onChange={(event) => updateAuditInfo('customer', event.target.value)} />
             </Field>
-            <Field label="Audit status">
-              <select value={vda65AuditInfo.auditStatus} onChange={(event) => updateAuditInfo('auditStatus', event.target.value)}>
-                <option value="Not started">Not started</option>
-                <option value="In progress">In progress</option>
-                <option value="Completed">Completed</option>
-              </select>
-            </Field>
-            <Field label="Scope" full>
+            <Field label="Scope">
               <textarea rows={3} value={vda65AuditInfo.scope} onChange={(event) => updateAuditInfo('scope', event.target.value)} />
             </Field>
-            <Field label="Notes" full>
-              <textarea rows={4} value={vda65AuditInfo.notes} onChange={(event) => updateAuditInfo('notes', event.target.value)} />
+            <Field label="Notes">
+              <textarea rows={3} value={vda65AuditInfo.notes} onChange={(event) => updateAuditInfo('notes', event.target.value)} />
+            </Field>
+            <Field label="Audit team" full>
+              <AuditTeamEditor
+                users={users}
+                leadAuditor={vda65AuditInfo.auditor}
+                auditTeam={auditTeam}
+                onLeadAuditorChange={(value) => updateAuditInfo('auditor', value)}
+                onAuditTeamChange={updateAuditTeam}
+              />
             </Field>
           </div>
         </Panel>

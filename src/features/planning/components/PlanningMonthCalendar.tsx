@@ -52,7 +52,7 @@ export default function PlanningMonthCalendar({
                 key={day.isoDate}
                 role="button"
                 tabIndex={0}
-                className={`planning-day-cell ${day.isCurrentMonth ? '' : 'planning-day-cell-muted'} ${day.isWeekend ? 'planning-day-cell-weekend' : ''} ${day.holidayLabel ? 'planning-day-cell-holiday' : ''} ${day.isToday ? 'planning-day-cell-today' : ''} ${day.records.some((record) => record.id === focusedRecordId) ? 'planning-day-cell-focused' : ''}`}
+                className={`planning-day-cell ${day.isCurrentMonth ? '' : 'planning-day-cell-muted'} ${day.isWeekend ? 'planning-day-cell-weekend' : ''} ${day.holidayLabel ? 'planning-day-cell-holiday' : ''} ${day.isToday ? 'planning-day-cell-today' : ''} ${!day.records.length ? 'planning-day-cell-empty' : ''} ${day.records.some((record) => record.id === focusedRecordId) ? 'planning-day-cell-focused' : ''}`}
                 onClick={() => onSelectDay(day.isoDate)}
                 onKeyDown={(event) => {
                   if (event.key === 'Enter' || event.key === ' ') {
@@ -69,10 +69,11 @@ export default function PlanningMonthCalendar({
                   {day.isToday ? <small className="planning-day-cell-today-badge">Today</small> : day.records.length ? <small>{day.records.length}</small> : null}
                 </div>
                 <div className="planning-day-cell-events">
-                  {day.records.slice(0, 3).map((record) => {
+                  {day.records.slice(0, 2).map((record) => {
                     const status = getDerivedPlanStatus(record)
                     const canOpenReport = !!onOpenReport && (Boolean(record.linkedAuditId) || Boolean(getPlanExecutionAuditType(record)))
                     const canComplete = status !== 'Completed' && status !== 'Cancelled' && !!onCompleteRecord
+                    const recordMeta = [record.owner, getPlanWindowLabel(record)].filter(Boolean).join(' • ')
 
                     return (
                       <div
@@ -92,15 +93,39 @@ export default function PlanningMonthCalendar({
                           }
                         }}
                       >
-                        <strong>{record.title}</strong>
-                        <div className="planning-calendar-event-meta">
-                          <span>{record.owner}</span>
+                        <div className="planning-calendar-event-header">
+                          <strong>{record.title}</strong>
                           <StatusBadge value={status} />
                         </div>
-                        <span>{getPlanWindowLabel(record)}</span>
-                        {canComplete ? (
-                          <div className="planning-calendar-event-actions">
-                            {canOpenReport ? (
+                        <div className="planning-calendar-event-footer">
+                          <span className="planning-calendar-event-caption">{recordMeta}</span>
+                          {canComplete ? (
+                            <div className="planning-calendar-event-actions">
+                              {canOpenReport ? (
+                                <button
+                                  type="button"
+                                  className="planning-calendar-event-action"
+                                  onClick={(event) => {
+                                    event.stopPropagation()
+                                    onOpenReport(record.id)
+                                  }}
+                                >
+                                  <ButtonLabel icon={record.linkedAuditId ? 'open' : 'add'} label={record.linkedAuditId ? 'Report' : 'Create'} />
+                                </button>
+                              ) : null}
+                              <button
+                                type="button"
+                                className="planning-calendar-event-complete"
+                                onClick={(event) => {
+                                  event.stopPropagation()
+                                  onCompleteRecord(record.id)
+                                }}
+                              >
+                                <ButtonLabel icon="complete" label="Done" />
+                              </button>
+                            </div>
+                          ) : canOpenReport ? (
+                            <div className="planning-calendar-event-actions">
                               <button
                                 type="button"
                                 className="planning-calendar-event-action"
@@ -109,38 +134,15 @@ export default function PlanningMonthCalendar({
                                   onOpenReport(record.id)
                                 }}
                               >
-                                <ButtonLabel icon={record.linkedAuditId ? 'open' : 'add'} label={record.linkedAuditId ? 'Open report' : 'Create report'} />
+                                <ButtonLabel icon={record.linkedAuditId ? 'open' : 'add'} label={record.linkedAuditId ? 'Report' : 'Create'} />
                               </button>
-                            ) : null}
-                            <button
-                              type="button"
-                              className="planning-calendar-event-complete"
-                              onClick={(event) => {
-                                event.stopPropagation()
-                                onCompleteRecord(record.id)
-                              }}
-                            >
-                              <ButtonLabel icon="complete" label="Mark completed" />
-                            </button>
-                          </div>
-                        ) : canOpenReport ? (
-                          <div className="planning-calendar-event-actions">
-                            <button
-                              type="button"
-                              className="planning-calendar-event-action"
-                              onClick={(event) => {
-                                event.stopPropagation()
-                                onOpenReport(record.id)
-                              }}
-                            >
-                              <ButtonLabel icon={record.linkedAuditId ? 'open' : 'add'} label={record.linkedAuditId ? 'Open report' : 'Create report'} />
-                            </button>
-                          </div>
-                        ) : null}
+                            </div>
+                          ) : null}
+                        </div>
                       </div>
                     )
                   })}
-                  {day.records.length > 3 ? <div className="planning-calendar-more">+{day.records.length - 3} more</div> : null}
+                  {day.records.length > 2 ? <div className="planning-calendar-more">+{day.records.length - 2} more</div> : null}
                 </div>
               </div>
             ))}

@@ -20,8 +20,6 @@ function getCommonAuditActivity(record: AuditRecord) {
   return [
     auditInfo.site,
     auditInfo.auditor,
-    auditInfo.reference,
-    auditInfo.department,
     auditInfo.customer,
     auditInfo.scope,
     auditInfo.notes,

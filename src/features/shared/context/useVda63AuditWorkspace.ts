@@ -1,6 +1,6 @@
 import { vda63QuestionBank } from '../../vda63/data/questionBank'
 import { buildVda63AuditQuestions, chapterOrder } from '../../../utils/auditUtils'
-import type { ActionPlanItem, ActionPlanUpdatePatch, AuditInfo, ScoreOption, Vda63ChapterKey, Vda63QuestionResponse } from '../../../types/audit'
+import type { ActionPlanItem, ActionPlanUpdatePatch, AuditInfo, AuditParticipant, ScoreOption, Vda63ChapterKey, Vda63QuestionResponse } from '../../../types/audit'
 import { useAuditWorkspace } from './useAuditWorkspace'
 import { createAuditHistoryEntry, describeActionPlanItem } from '../../../utils/traceability'
 
@@ -22,7 +22,7 @@ export function useVda63AuditWorkspace() {
     ...workspace,
     vda63AuditInfo: audit.data.auditInfo,
     vda63Questions,
-    vda63Participants: audit.data.participants,
+    auditTeam: audit.auditTeam,
     chapterScope: audit.data.chapterScope,
     actionPlanItems: audit.actions,
     updateAuditTitle: (title: string) => {
@@ -75,7 +75,7 @@ export function useVda63AuditWorkspace() {
         }
       })
     },
-    updateParticipants: (participants: string[]) => {
+    updateAuditTeam: (auditTeam: AuditParticipant[]) => {
       workspace.updateAuditRecord(audit.id, (current) => {
         if (current.auditType !== 'vda63') {
           return current
@@ -83,10 +83,7 @@ export function useVda63AuditWorkspace() {
 
         return {
           ...current,
-          data: {
-            ...current.data,
-            participants,
-          },
+          auditTeam,
         }
       })
     },

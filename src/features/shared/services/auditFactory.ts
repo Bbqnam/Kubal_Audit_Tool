@@ -5,6 +5,7 @@ import { getAuditStandardLabel } from '../../../data/auditTypes'
 import { vda63QuestionBank } from '../../vda63/data/questionBank'
 import { chapterOrder } from '../../../utils/auditUtils'
 import { createAuditHistoryEntry, createAuditReferenceId, DEFAULT_AUDIT_ACTOR } from '../../../utils/traceability'
+import { normalizeAuditParticipants } from '../../../utils/userDirectory'
 import type {
   ActionPlanItem,
   AuditInfo,
@@ -329,6 +330,7 @@ export function normalizeAuditRecordShape(record: AuditRecord): AuditRecord {
       updatedBy,
       lastModifiedBy: record.lastModifiedBy ?? updatedBy,
       history,
+      auditTeam: normalizeAuditParticipants(record.auditTeam ?? []),
       data: {
         auditInfo: {
           ...createBlankAuditInfo(vda65AuditInfo),
@@ -358,6 +360,7 @@ export function normalizeAuditRecordShape(record: AuditRecord): AuditRecord {
       updatedBy,
       lastModifiedBy: record.lastModifiedBy ?? updatedBy,
       history,
+      auditTeam: normalizeAuditParticipants(record.auditTeam ?? []),
       actions: synchronizeGenericAuditActions(reportItems, record.actions, record.auditType),
       data: {
         auditInfo: {
@@ -395,13 +398,13 @@ export function normalizeAuditRecordShape(record: AuditRecord): AuditRecord {
     updatedBy,
     lastModifiedBy: record.lastModifiedBy ?? updatedBy,
     history,
+    auditTeam: normalizeAuditParticipants(record.auditTeam ?? (record.data as { participants?: typeof vda63Participants }).participants ?? clone(vda63Participants)),
     data: {
       auditInfo: record.data.auditInfo,
       responses:
         hasCompleteResponseSet && normalizedResponses
           ? createBlankVda63Responses().map((response) => normalizedResponses.find((item) => item.id === response.id) ?? response)
           : createBlankVda63Responses(),
-      participants: record.data.participants ?? clone(vda63Participants),
       chapterScope: hasStoredChapterScope ? clone(normalizedChapterScope ?? []) : clone(chapterOrder),
     },
   }
@@ -437,12 +440,12 @@ export function createAuditRecord(
           updatedBy: DEFAULT_AUDIT_ACTOR,
           lastModifiedBy: DEFAULT_AUDIT_ACTOR,
           summary: { progressPercent: 0 },
+          auditTeam: clone(vda63Participants),
           actions: [],
           history,
           data: {
             auditInfo: createBlankAuditInfo(vda63AuditInfo),
             responses: createBlankVda63Responses(),
-            participants: clone(vda63Participants),
             chapterScope: clone(chapterOrder),
           },
         }
@@ -464,6 +467,7 @@ export function createAuditRecord(
             updatedBy: DEFAULT_AUDIT_ACTOR,
             lastModifiedBy: DEFAULT_AUDIT_ACTOR,
             summary: { progressPercent: 0 },
+            auditTeam: [],
             actions: [],
             history,
             data: {
@@ -489,6 +493,7 @@ export function createAuditRecord(
           updatedBy: DEFAULT_AUDIT_ACTOR,
           lastModifiedBy: DEFAULT_AUDIT_ACTOR,
           summary: { progressPercent: 0 },
+          auditTeam: [],
           actions: [],
           history,
           data: {
@@ -522,12 +527,12 @@ export function createSeedAuditRecords(): AuditRecord[] {
       updatedBy: DEFAULT_AUDIT_ACTOR,
       lastModifiedBy: DEFAULT_AUDIT_ACTOR,
       summary: { progressPercent: 0 },
+      auditTeam: clone(vda63Participants),
       actions: withActionIds(actionPlanItems.filter((item) => item.auditType === 'vda63')),
       history: [createAuditHistoryEntry('created', 'Seed audit loaded into the workspace.', now)],
       data: {
         auditInfo: clone(vda63AuditInfo),
         responses: clone(vda63SeedResponses),
-        participants: clone(vda63Participants),
         chapterScope: clone(chapterOrder),
       },
     },
@@ -548,6 +553,7 @@ export function createSeedAuditRecords(): AuditRecord[] {
       updatedBy: DEFAULT_AUDIT_ACTOR,
       lastModifiedBy: DEFAULT_AUDIT_ACTOR,
       summary: { progressPercent: 0 },
+      auditTeam: [],
       actions: withActionIds(actionPlanItems.filter((item) => item.auditType === 'vda65')),
       history: [createAuditHistoryEntry('created', 'Seed audit loaded into the workspace.', now)],
       data: {
@@ -582,12 +588,12 @@ export function duplicateAuditRecord(
           updatedAt: now,
           updatedBy: DEFAULT_AUDIT_ACTOR,
           lastModifiedBy: DEFAULT_AUDIT_ACTOR,
+          auditTeam: clone(record.auditTeam),
           actions: withActionIds(record.actions),
           history: [createAuditHistoryEntry('created', `Audit duplicated from ${record.auditId}.`, now)],
           data: {
             auditInfo: clone(record.data.auditInfo),
             responses: clone(record.data.responses),
-            participants: clone(record.data.participants),
             chapterScope: clone(record.data.chapterScope),
           },
         } satisfies Vda63AuditRecord)
@@ -603,6 +609,7 @@ export function duplicateAuditRecord(
           updatedAt: now,
           updatedBy: DEFAULT_AUDIT_ACTOR,
           lastModifiedBy: DEFAULT_AUDIT_ACTOR,
+          auditTeam: clone(record.auditTeam),
           actions: withActionIds(record.actions),
           history: [createAuditHistoryEntry('created', `Audit duplicated from ${record.auditId}.`, now)],
           data: {
@@ -622,6 +629,7 @@ export function duplicateAuditRecord(
             updatedAt: now,
             updatedBy: DEFAULT_AUDIT_ACTOR,
             lastModifiedBy: DEFAULT_AUDIT_ACTOR,
+            auditTeam: clone(record.auditTeam),
             actions: withActionIds(record.actions),
             history: [createAuditHistoryEntry('created', `Audit duplicated from ${record.auditId}.`, now)],
             data: {
@@ -658,6 +666,7 @@ export function changeAuditRecordType(record: AuditRecord, targetType: AuditType
         updatedAt: record.updatedAt,
         title: resolvedTitle,
         standard: 'VDA 6.3',
+        auditTeam: clone(record.auditTeam),
         actions: sharedActions,
         data: {
           ...baseRecord.data,
@@ -680,6 +689,7 @@ export function changeAuditRecordType(record: AuditRecord, targetType: AuditType
         updatedAt: record.updatedAt,
         title: resolvedTitle,
         standard: 'VDA 6.5',
+        auditTeam: clone(record.auditTeam),
         actions: sharedActions,
         data: {
           ...baseRecord.data,
@@ -701,6 +711,7 @@ export function changeAuditRecordType(record: AuditRecord, targetType: AuditType
       updatedAt: record.updatedAt,
       title: resolvedTitle,
       standard: targetType === 'template' ? record.standard : record.standard || getAuditStandardLabel(targetType),
+      auditTeam: clone(record.auditTeam),
       actions: sharedActions,
       data: {
         auditInfo: {

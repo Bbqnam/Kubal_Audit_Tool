@@ -25,6 +25,7 @@ export default function PlanningHistoryModal({ record, onClose }: { record: Audi
               <span>{formatDateTime(item.timestamp)}</span>
             </div>
             <strong>{item.summary}</strong>
+            <span className="planning-history-item-meta">{item.actorName} · {item.actorPosition}</span>
           </div>
         ))}
       </div>

@@ -1,8 +1,10 @@
 import { useState } from 'react'
 import { Field, Modal } from '../../../components/ui'
 import { ButtonLabel } from '../../../components/icons'
+import WorkspaceUserSelect from '../../../components/WorkspaceUserSelect'
 import type { AuditPlanRecord, AuditPlanStatus } from '../../../types/planning'
 import type { AuditPlanningStandardOption, InternalExternalClassification } from '../../../types/planning'
+import { useAuditLibrary } from '../../shared/context/useAuditLibrary'
 import { processScopedStandards, shiftIsoDate } from '../services/planningUtils'
 
 export type PlanningEditorDraft = {
@@ -98,6 +100,7 @@ export default function PlanningRecordModal({
   onSave,
   onDelete,
 }: PlanningRecordModalProps) {
+  const { users } = useAuditLibrary()
   const [draft, setDraft] = useState<PlanningEditorDraft>(() =>
     initialRecord ? toDraft(initialRecord) : createDefaultDraft(defaultStartDate),
   )
@@ -106,6 +109,7 @@ export default function PlanningRecordModal({
 
   const selectedStandardOption = standardOptions.find((item) => item.label === draft.standard)
   const showProcessField = processScopedStandards.has(draft.standard)
+  const isCreateMode = mode === 'create'
 
   function validateDraft(value: PlanningEditorDraft) {
     const errors: string[] = []
@@ -118,20 +122,20 @@ export default function PlanningRecordModal({
       errors.push('Standard is required.')
     }
 
+    if (!value.auditType.trim()) {
+      errors.push('Type of audit is required.')
+    }
+
     if (!value.owner.trim()) {
-      errors.push('Owner is required.')
+      errors.push('Auditor is required.')
     }
 
     if (!value.plannedStart) {
-      errors.push('Planned start date is required.')
+      errors.push('Date is required.')
     }
 
-    if (!value.plannedEnd) {
+    if (!isCreateMode && !value.plannedEnd) {
       errors.push('Planned end date is required.')
-    }
-
-    if (showProcessField && !value.processArea.trim()) {
-      errors.push('Process / stream is required for the selected standard.')
     }
 
     return errors
@@ -165,7 +169,7 @@ export default function PlanningRecordModal({
     setValidationErrors([])
     onSave({
       ...draft,
-      plannedEnd: draft.plannedEnd < draft.plannedStart ? draft.plannedStart : draft.plannedEnd,
+      plannedEnd: isCreateMode ? draft.plannedStart : draft.plannedEnd < draft.plannedStart ? draft.plannedStart : draft.plannedEnd,
     })
   }
 
@@ -179,25 +183,25 @@ export default function PlanningRecordModal({
 
   return (
     <Modal
-      title={mode === 'create' ? 'Quick create audit' : 'Edit planned audit'}
-      description={mode === 'create' ? 'Create an audit with the minimum fields first, then expand details only if needed.' : 'Update dates, owner, classification, and any optional planning details.'}
+      title={isCreateMode ? 'Quick create audit' : 'Edit planned audit'}
+      description={isCreateMode ? 'Create the audit shell first. Everything else can be completed later in the detailed audit info.' : 'Update dates, auditor, classification, and any optional planning details.'}
       onClose={onClose}
       size="large"
-      actions={
-        <>
+      actions={(
+        <div className="planning-record-modal-actions">
           {mode === 'edit' && onDelete ? (
             <button type="button" className="button button-secondary button-danger" onClick={onDelete}>
               <ButtonLabel icon="delete" label="Delete" />
             </button>
           ) : null}
-          <button type="button" className="button button-secondary" onClick={onClose}>
+          <button type="button" className="button button-secondary planning-record-modal-close" onClick={onClose}>
             <ButtonLabel icon="close" label="Cancel" />
           </button>
-          <button type="submit" form="planning-record-form" className="button button-primary">
-            <ButtonLabel icon={mode === 'create' ? 'add' : 'save'} label={mode === 'create' ? 'Add audit' : 'Save changes'} />
+          <button type="submit" form="planning-record-form" className="button button-primary planning-record-modal-submit">
+            <ButtonLabel icon={isCreateMode ? 'add' : 'save'} label={isCreateMode ? 'Add audit' : 'Save changes'} />
           </button>
-        </>
-      }
+        </div>
+      )}
     >
       <form id="planning-record-form" className="input-grid planning-form-grid" onSubmit={handleSubmit}>
         {validationErrors.length ? (
@@ -206,9 +210,11 @@ export default function PlanningRecordModal({
             <p>{validationErrors.join(' ')}</p>
           </div>
         ) : null}
+
         <Field label="Title" full>
           <input value={draft.title} onChange={(event) => setDraft((current) => ({ ...current, title: event.target.value }))} required />
         </Field>
+
         <Field label="Standard">
           <select
             value={selectedStandardOption?.id ?? 'custom-audit-type'}
@@ -220,43 +226,67 @@ export default function PlanningRecordModal({
             ))}
           </select>
         </Field>
-        <Field label="Internal / external">
-          <select
-            value={draft.internalExternal}
-            onChange={(event) => setDraft((current) => ({ ...current, internalExternal: event.target.value as InternalExternalClassification }))}
-            required
-          >
-            {internalExternalOptions.map((option) => (
-              <option key={option} value={option}>{option}</option>
-            ))}
-          </select>
+
+        <Field label="Type of audit">
+          <input value={draft.auditType} onChange={(event) => setDraft((current) => ({ ...current, auditType: event.target.value }))} required />
         </Field>
-        <Field label="Owner">
-          <input value={draft.owner} onChange={(event) => setDraft((current) => ({ ...current, owner: event.target.value }))} required />
+
+        <Field label="Auditor">
+          <WorkspaceUserSelect
+            users={users}
+            value={draft.owner}
+            onChange={(value) => setDraft((current) => ({ ...current, owner: value }))}
+            placeholder="Select auditor"
+          />
         </Field>
-        <Field label="Planned start">
+
+        <Field label={isCreateMode ? 'Date' : 'Planned start'}>
           <input type="date" value={draft.plannedStart} onChange={(event) => setDraft((current) => ({ ...current, plannedStart: event.target.value }))} required />
         </Field>
-        <Field label="Planned end">
-          <input type="date" value={draft.plannedEnd} onChange={(event) => setDraft((current) => ({ ...current, plannedEnd: event.target.value }))} required />
-        </Field>
-        {mode === 'edit' ? (
+
+        {!isCreateMode ? (
+          <Field label="Planned end">
+            <input type="date" value={draft.plannedEnd} onChange={(event) => setDraft((current) => ({ ...current, plannedEnd: event.target.value }))} required />
+          </Field>
+        ) : null}
+
+        {!isCreateMode ? (
           <div className="planning-quick-shift">
             <span>Quick date move</span>
             <div className="planning-pill-stack">
-              <button type="button" className="button button-secondary button-small" onClick={() => shiftDates(-1)}> -1 day </button>
-              <button type="button" className="button button-secondary button-small" onClick={() => shiftDates(1)}> +1 day </button>
-              <button type="button" className="button button-secondary button-small" onClick={() => shiftDates(7)}> +1 week </button>
+              <button type="button" className="button button-secondary button-small" onClick={() => shiftDates(-1)}>-1 day</button>
+              <button type="button" className="button button-secondary button-small" onClick={() => shiftDates(1)}>+1 day</button>
+              <button type="button" className="button button-secondary button-small" onClick={() => shiftDates(7)}>+1 week</button>
             </div>
           </div>
         ) : null}
-        <div className="planning-more-details" aria-expanded={showMoreDetails}>
-          <button type="button" className="button button-secondary button-small" onClick={() => setShowMoreDetails((current) => !current)}>
-            <ButtonLabel icon={showMoreDetails ? 'collapse' : 'details'} label={showMoreDetails ? 'Hide details' : 'Show details'} />
-          </button>
-        </div>
-        {showMoreDetails ? (
+
+        {!isCreateMode ? (
+          <div className="planning-more-details" aria-expanded={showMoreDetails}>
+            <button
+              type="button"
+              className="button button-secondary button-small planning-record-modal-toggle"
+              onClick={() => setShowMoreDetails((current) => !current)}
+            >
+              <ButtonLabel icon={showMoreDetails ? 'collapse' : 'details'} label={showMoreDetails ? 'Hide details' : 'Show details'} />
+            </button>
+          </div>
+        ) : null}
+
+        {!isCreateMode && showMoreDetails ? (
           <>
+            <Field label="Internal / external">
+              <select
+                value={draft.internalExternal}
+                onChange={(event) => setDraft((current) => ({ ...current, internalExternal: event.target.value as InternalExternalClassification }))}
+                required
+              >
+                {internalExternalOptions.map((option) => (
+                  <option key={option} value={option}>{option}</option>
+                ))}
+              </select>
+            </Field>
+
             <Field label="Department">
               <select value={draft.department} onChange={(event) => setDraft((current) => ({ ...current, department: event.target.value }))}>
                 <option value="">Select department</option>
@@ -265,23 +295,25 @@ export default function PlanningRecordModal({
                 ))}
               </select>
             </Field>
+
             {showProcessField ? (
               <Field label="Process / stream">
                 <input value={draft.processArea} onChange={(event) => setDraft((current) => ({ ...current, processArea: event.target.value }))} />
               </Field>
             ) : null}
+
             <Field label="Site">
               <input value={draft.site} onChange={(event) => setDraft((current) => ({ ...current, site: event.target.value }))} />
             </Field>
+
             <Field label="Frequency">
               <input value={draft.frequency} onChange={(event) => setDraft((current) => ({ ...current, frequency: event.target.value }))} placeholder="Optional" />
             </Field>
-            <Field label="Audit type">
-              <input value={draft.auditType} onChange={(event) => setDraft((current) => ({ ...current, auditType: event.target.value }))} />
-            </Field>
+
             <Field label="Category">
               <input value={draft.auditCategory} onChange={(event) => setDraft((current) => ({ ...current, auditCategory: event.target.value }))} />
             </Field>
+
             <Field label="Planning status">
               <select value={draft.status} onChange={(event) => setDraft((current) => ({ ...current, status: event.target.value as PlanningEditorDraft['status'] }))}>
                 <option value="Planned">Planned</option>
@@ -289,6 +321,7 @@ export default function PlanningRecordModal({
                 <option value="Cancelled">Cancelled</option>
               </select>
             </Field>
+
             <Field label="Notes" full>
               <textarea rows={4} value={draft.notes} onChange={(event) => setDraft((current) => ({ ...current, notes: event.target.value }))} />
             </Field>

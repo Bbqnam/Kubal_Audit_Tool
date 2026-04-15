@@ -308,6 +308,52 @@ export function getAuditTypeFamily(value: AuditType | AuditPlanningType | string
     return value as AuditTypeFamily
   }
 
+  const normalizedValue = value.trim().toUpperCase()
+
+  if (!normalizedValue) {
+    return 'Custom Audit'
+  }
+
+  if (normalizedValue.includes('VDA 6.3') || normalizedValue.includes('PROCESS')) {
+    return 'Process Audit'
+  }
+
+  if (normalizedValue.includes('VDA 6.5') || normalizedValue.includes('PRODUCT')) {
+    return 'Product Audit'
+  }
+
+  if (normalizedValue.includes('IATF') || normalizedValue.startsWith('ISO ') || normalizedValue.includes('SYSTEM')) {
+    return 'System Audit'
+  }
+
+  if (normalizedValue.includes('SUPPLIER')) {
+    return 'Supplier Audit'
+  }
+
+  if (normalizedValue.includes('SUSTAIN') || normalizedValue.includes('ECOVADIS') || normalizedValue.includes('CO2')) {
+    return 'Sustainability Assessment'
+  }
+
+  if (normalizedValue.includes('CERTIFICATION') || normalizedValue.includes('CERTIFIED')) {
+    return 'Certification Audit'
+  }
+
+  if (normalizedValue.includes('COMPLIANCE')) {
+    return 'Compliance Review'
+  }
+
+  if (normalizedValue.includes('FOLLOW')) {
+    return 'Follow-up Audit'
+  }
+
+  if (normalizedValue.includes('SPECIAL')) {
+    return 'Special Audit'
+  }
+
+  if (normalizedValue.includes('CUSTOM')) {
+    return 'Custom Audit'
+  }
+
   return 'Custom Audit'
 }
 

@@ -7,6 +7,7 @@ import { ShellChromeProvider } from './features/shared/context/ShellChromeProvid
 import AppLayout from './layouts/AppLayout'
 import Dashboard from './pages/Dashboard'
 import AuditsPage from './pages/AuditsPage'
+import AdminAccessPage from './pages/AdminAccessPage'
 import NotFound from './pages/NotFound'
 import CanonicalAuditRoute from './features/shared/components/CanonicalAuditRoute'
 
@@ -67,6 +68,8 @@ function App() {
               <Route path="planning/reports" element={<LazyRoute><PlanningReportsPage /></LazyRoute>} />
               <Route path="planning/checklist" element={<LazyRoute><PlanningChecklistPage /></LazyRoute>} />
               <Route path="audits" element={<AuditsPage />} />
+              <Route path="admin" element={<Navigate to="/admin/access" replace />} />
+              <Route path="admin/access" element={<AdminAccessPage />} />
               <Route
                 path="audits/:auditId/vda63"
                 element={(

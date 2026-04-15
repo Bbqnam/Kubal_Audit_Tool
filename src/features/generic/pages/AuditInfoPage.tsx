@@ -1,8 +1,10 @@
 import { useNavigate } from 'react-router-dom'
 import ActivityLog from '../../../components/ActivityLog'
+import AuditTeamEditor from '../../../components/AuditTeamEditor'
 import { ButtonLabel } from '../../../components/icons'
 import ExportCenter from '../../../components/ExportCenter'
 import MetadataSection from '../../../components/MetadataSection'
+import WorkspaceUserSelect from '../../../components/WorkspaceUserSelect'
 import { DetailList, Field, MetricCard, PageHeader, Panel } from '../../../components/ui'
 import { getAuditTitleLabel, getAuditTypeFamilyLabel, getAuditTypeLabel, getAuditWorkspaceKind } from '../../../data/auditTypes'
 import { getAuditRecordHomePath, getAuditSectionPath, getPlanningCalendarPath } from '../../../data/navigation'
@@ -14,20 +16,22 @@ export default function GenericAuditInfoPage() {
   const navigate = useNavigate()
   const {
     audit,
+    auditTeam,
     genericAuditInfo,
     updateAuditInfo,
+    updateAuditTeam,
     updateAuditStandard,
     updateAuditTitle,
     updateAuditRecord,
     changeAuditType,
     getPlanById,
+    users,
     actionPlanItems,
   } = useGenericAuditWorkspace()
   const auditTypeLabel = getAuditTypeLabel(audit.auditType)
   const selectedTemplateOption = sharedAuditTemplateOptions.find((option) => option.standard === audit.standard)
   const workflowLabel = selectedTemplateOption?.workflowLabel ?? (getAuditWorkspaceKind(audit.auditType) === 'generic' ? 'Shared report template' : 'Dedicated template')
   const linkedPlanRecord = audit.planRecordId ? getPlanById(audit.planRecordId) ?? null : null
-  const templateStandardOptions = [...new Set(sharedAuditTemplateOptions.map((option) => option.standard))]
 
   function handleChangeTemplate(nextStandard: string) {
     if (!nextStandard) {
@@ -86,18 +90,29 @@ export default function GenericAuditInfoPage() {
 
       <div className="metrics-grid">
         <MetricCard label="Template" value={selectedTemplateOption?.label ?? auditTypeLabel} />
-        <MetricCard label="Status" value={genericAuditInfo.auditStatus} tone={genericAuditInfo.auditStatus === 'Completed' ? 'success' : genericAuditInfo.auditStatus === 'In progress' ? 'warning' : 'default'} />
+        <MetricCard label="Workflow" value={workflowLabel} />
         <MetricCard label="Action items" value={actionPlanItems.length} tone={actionPlanItems.length ? 'warning' : 'default'} />
       </div>
 
       <div className="form-grid">
         <Panel
-          title="Template selection"
-          description="Choose the standard or programme template first, then continue into the matching audit workflow when you are ready."
+          title="Audit setup"
+          description="Choose the template, set the core audit details, and continue into the matching workflow from one place."
+          className="panel-span-full"
           actions={
-            <button type="button" className="button button-primary" onClick={handleContinueTemplate} disabled={!audit.standard.trim()}>
-              <ButtonLabel icon="next" label={selectedTemplateOption?.auditType === 'vda63' || selectedTemplateOption?.auditType === 'vda65' ? 'Open template' : 'Next: audit report'} />
-            </button>
+            <div className="panel-inline-controls">
+              <label className="panel-inline-field">
+                <span>Audit status</span>
+                <select value={genericAuditInfo.auditStatus} onChange={(event) => updateAuditInfo('auditStatus', event.target.value)}>
+                  <option value="Not started">Not started</option>
+                  <option value="In progress">In progress</option>
+                  <option value="Completed">Completed</option>
+                </select>
+              </label>
+              <button type="button" className="button button-primary" onClick={handleContinueTemplate} disabled={!audit.standard.trim()}>
+                <ButtonLabel icon="next" label={selectedTemplateOption?.auditType === 'vda63' || selectedTemplateOption?.auditType === 'vda65' ? 'Open template' : 'Next: audit report'} />
+              </button>
+            </div>
           }
         >
           <div className="input-grid">
@@ -114,59 +129,32 @@ export default function GenericAuditInfoPage() {
             <Field label="Workflow mode">
               <input value={workflowLabel} readOnly />
             </Field>
-          </div>
-        </Panel>
-
-        <Panel title="Audit details" description="These core fields stay consistent before you move into specialised audit content.">
-          <div className="input-grid">
             <Field label="Audit title">
               <input value={audit.title} onChange={(event) => updateAuditTitle(event.target.value)} />
-            </Field>
-            <Field label="Standard">
-              <>
-                <input
-                  list="generic-standard-options"
-                  value={audit.standard}
-                  onChange={(event) => updateAuditStandard(event.target.value)}
-                  placeholder="ISO 9001, ISO 14001, IATF 16949, EcoVadis..."
-                />
-                <datalist id="generic-standard-options">
-                  {templateStandardOptions.map((standard) => (
-                    <option key={standard} value={standard} />
-                  ))}
-                </datalist>
-              </>
-            </Field>
-            <Field label="Audit status">
-              <select value={genericAuditInfo.auditStatus} onChange={(event) => updateAuditInfo('auditStatus', event.target.value)}>
-                <option value="Not started">Not started</option>
-                <option value="In progress">In progress</option>
-                <option value="Completed">Completed</option>
-              </select>
-            </Field>
-            <Field label="Reference">
-              <input value={genericAuditInfo.reference} onChange={(event) => updateAuditInfo('reference', event.target.value)} />
             </Field>
             <Field label="Site">
               <input value={genericAuditInfo.site} onChange={(event) => updateAuditInfo('site', event.target.value)} />
             </Field>
-            <Field label="Auditor">
-              <input value={genericAuditInfo.auditor} onChange={(event) => updateAuditInfo('auditor', event.target.value)} />
+            <Field label="Lead auditor">
+              <WorkspaceUserSelect users={users} value={genericAuditInfo.auditor} onChange={(value) => updateAuditInfo('auditor', value)} placeholder="Select lead auditor" />
             </Field>
             <Field label="Audit date">
               <input type="date" value={genericAuditInfo.date} onChange={(event) => updateAuditInfo('date', event.target.value)} />
             </Field>
-            <Field label="Department">
-              <input value={genericAuditInfo.department} onChange={(event) => updateAuditInfo('department', event.target.value)} />
-            </Field>
-            <Field label="Customer">
-              <input value={genericAuditInfo.customer ?? ''} onChange={(event) => updateAuditInfo('customer', event.target.value)} />
-            </Field>
-            <Field label="Scope" full>
+            <Field label="Scope">
               <textarea rows={3} value={genericAuditInfo.scope} onChange={(event) => updateAuditInfo('scope', event.target.value)} />
             </Field>
-            <Field label="Notes" full>
-              <textarea rows={4} value={genericAuditInfo.notes} onChange={(event) => updateAuditInfo('notes', event.target.value)} />
+            <Field label="Notes">
+              <textarea rows={3} value={genericAuditInfo.notes} onChange={(event) => updateAuditInfo('notes', event.target.value)} />
+            </Field>
+            <Field label="Audit team" full>
+              <AuditTeamEditor
+                users={users}
+                leadAuditor={genericAuditInfo.auditor}
+                auditTeam={auditTeam}
+                onLeadAuditorChange={(value) => updateAuditInfo('auditor', value)}
+                onAuditTeamChange={updateAuditTeam}
+              />
             </Field>
           </div>
         </Panel>

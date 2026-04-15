@@ -61,14 +61,42 @@ export type PlanningHistoryAction =
   | 'Rescheduled'
   | 'Completed'
   | 'Cancelled'
+  | 'Deleted'
   | 'Duplicated'
   | 'Linked audit'
+  | 'Checklist updated'
+  | 'Year added'
+  | 'Year removed'
+
+export type PlanningActorSnapshot = {
+  name: string
+  position: string
+}
 
 export type AuditPlanChangeHistoryEntry = {
   id: string
   timestamp: string
   action: PlanningHistoryAction
   summary: string
+  actorName: string
+  actorPosition: string
+}
+
+export type PlanningActivityEntityType = 'Plan record' | 'Planning year' | 'Checklist item'
+
+export type PlanningActivityLogEntry = {
+  id: string
+  timestamp: string
+  action: PlanningHistoryAction
+  summary: string
+  actorName: string
+  actorPosition: string
+  entityType: PlanningActivityEntityType
+  recordId?: string | null
+  recordTitle?: string | null
+  year?: number | null
+  checklistItemId?: string | null
+  checklistTitle?: string | null
 }
 
 export type AuditPlanRecord = {

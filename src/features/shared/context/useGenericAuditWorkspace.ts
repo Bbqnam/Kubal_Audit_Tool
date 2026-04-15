@@ -1,4 +1,4 @@
-import type { ActionPlanItem, ActionPlanUpdatePatch, AuditInfo, GenericAuditReportItem } from '../../../types/audit'
+import type { ActionPlanItem, ActionPlanUpdatePatch, AuditInfo, AuditParticipant, GenericAuditReportItem } from '../../../types/audit'
 import { useAuditWorkspace } from './useAuditWorkspace'
 import { createAuditHistoryEntry, describeActionPlanItem } from '../../../utils/traceability'
 
@@ -66,6 +66,7 @@ export function useGenericAuditWorkspace() {
   return {
     ...workspace,
     genericAuditInfo: audit.data.auditInfo,
+    auditTeam: audit.auditTeam,
     reportItems: audit.data.reportItems,
     reportSummary: audit.data.reportSummary,
     actionPlanItems: audit.actions,
@@ -90,6 +91,18 @@ export function useGenericAuditWorkspace() {
               [field]: value,
             },
           },
+        }
+      })
+    },
+    updateAuditTeam: (auditTeam: AuditParticipant[]) => {
+      workspace.updateAuditRecord(audit.id, (current) => {
+        if (current.auditType === 'vda63' || current.auditType === 'vda65') {
+          return current
+        }
+
+        return {
+          ...current,
+          auditTeam,
         }
       })
     },

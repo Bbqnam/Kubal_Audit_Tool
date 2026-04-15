@@ -1,9 +1,10 @@
 import { useState, type CSSProperties } from 'react'
 import { Link } from 'react-router-dom'
-import { MetricCard, PageHeader } from '../../../components/ui'
+import { MetricCard } from '../../../components/ui'
 import { ButtonLabel } from '../../../components/icons'
 import { getPlanningCalendarPath } from '../../../data/navigation'
 import { useAuditLibrary } from '../../shared/context/useAuditLibrary'
+import PlanningPageHeader from '../components/PlanningPageHeader'
 import {
   buildPlanningCalendarWeeks,
   getDerivedPlanStatus,
@@ -98,8 +99,9 @@ export default function ThreeYearPlanPage() {
 
   return (
     <div className="module-page planning-page">
-      <PageHeader
-        eyebrow="Audit planning"
+      <PlanningPageHeader
+        title="3-year plan"
+        subtitle="Scan yearly capacity first, then open the exact month that needs attention."
       />
 
       <div className="threeyear-summary-bar">
@@ -141,18 +143,25 @@ export default function ThreeYearPlanPage() {
           return (
             <div key={year} className={`threeyear-year-panel ${isCollapsed ? 'threeyear-year-panel-collapsed' : ''}`}>
               <div className="threeyear-year-header">
-                <div>
-                  <strong className="threeyear-year-label">{year}</strong>
-                  <span className="threeyear-year-sub">
-                    {summary.total} audits · {summary.completed} completed{summary.overdue > 0 ? ` · ${summary.overdue} delayed` : ''}
-                  </span>
-                </div>
-                <div className="threeyear-year-header-actions">
+                <button
+                  type="button"
+                  className="threeyear-year-header-main"
+                  onClick={() => toggleYearCollapsed(year)}
+                  aria-expanded={!isCollapsed}
+                >
+                  <div>
+                    <strong className="threeyear-year-label">{year}</strong>
+                    <span className="threeyear-year-sub">
+                      {summary.total} audits · {summary.completed} completed{summary.overdue > 0 ? ` · ${summary.overdue} delayed` : ''}
+                    </span>
+                  </div>
                   <div className="threeyear-status-pills">
                     {summary.completed > 0 ? <span className="threeyear-status-pill threeyear-pill-done">{summary.completed} done</span> : null}
                     {summary.inProgress > 0 ? <span className="threeyear-status-pill threeyear-pill-progress">{summary.inProgress} active</span> : null}
                     {summary.overdue > 0 ? <span className="threeyear-status-pill threeyear-pill-overdue">{summary.overdue} delayed</span> : null}
                   </div>
+                </button>
+                <div className="threeyear-year-header-actions">
                   <button
                     type="button"
                     className="button button-secondary button-small button-danger threeyear-delete-button threeyear-icon-button"

@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import ExportCenter from '../../../components/ExportCenter'
 import { ButtonLabel } from '../../../components/icons'
 import { DetailList, EmptyState, MetricCard, PageHeader, Panel } from '../../../components/ui'
 import {
@@ -171,8 +172,6 @@ export default function GenericAuditReportPage() {
               { label: 'Site', value: genericAuditInfo.site || 'Not set' },
               { label: 'Auditor', value: genericAuditInfo.auditor || 'Not set' },
               { label: 'Audit date', value: genericAuditInfo.date || 'Not set' },
-              { label: 'Reference', value: genericAuditInfo.reference || 'Not set' },
-              { label: 'Department', value: genericAuditInfo.department || 'Not set' },
             ]}
           />
         </Panel>
@@ -341,6 +340,12 @@ export default function GenericAuditReportPage() {
           />
         )}
       </Panel>
+
+      <ExportCenter
+        auditLabel={`${audit.title} Audit Report`}
+        payload={audit}
+        description="Export the shared audit report with nonconformities, narrative text, actions, and the hidden import snapshot."
+      />
 
       {activeClauseItem && supportsClauseCatalog(audit.standard) ? (
         <ClausePickerModal

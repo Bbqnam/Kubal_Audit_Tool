@@ -1,16 +1,18 @@
 import { Link } from 'react-router-dom'
 import ActivityLog from '../../../components/ActivityLog'
+import AuditTeamEditor from '../../../components/AuditTeamEditor'
 import ExportCenter from '../../../components/ExportCenter'
 import { ButtonLabel } from '../../../components/icons'
 import MetadataSection from '../../../components/MetadataSection'
+import WorkspaceUserSelect from '../../../components/WorkspaceUserSelect'
 import { getAuditSectionPath, vda63ChapterTitles } from '../../../data/navigation'
 import { buildVda63Summary, chapterOrder, getVda63AnsweredCount, getVda63ChapterStatusLabel } from '../../../utils/auditUtils'
-import { DetailList, Field, MetricCard, PageHeader, Panel, ProgressBar, StatusBadge } from '../../../components/ui'
+import { DetailList, Field, MetricCard, PageHeader, Panel, ProgressBar } from '../../../components/ui'
 import { useVda63AuditWorkspace } from '../../shared/context/useVda63AuditWorkspace'
 import { getAuditInfoMetadataItems, getAuditInfoMetadataNote } from '../../../utils/traceability'
 
 export default function Vda63AuditInfoPage() {
-  const { audit, chapterScope, updateAuditInfo, updateAuditTitle, updateChapterScope, vda63AuditInfo, vda63Questions } = useVda63AuditWorkspace()
+  const { audit, users, auditTeam, chapterScope, updateAuditInfo, updateAuditTitle, updateChapterScope, updateAuditTeam, vda63AuditInfo, vda63Questions } = useVda63AuditWorkspace()
   const summary = buildVda63Summary(vda63Questions, chapterScope)
   const scopedQuestionCount = vda63Questions.filter((question) => chapterScope.includes(question.chapter)).length
   const scopedStarQuestionCount = vda63Questions.filter((question) => chapterScope.includes(question.chapter) && question.isStarQuestion).length
@@ -35,7 +37,20 @@ export default function Vda63AuditInfoPage() {
         <MetricCard label="Answered questions" value={`${answeredQuestions}/${scopedQuestionCount}`} tone="success" />
       </div>
 
-      <Panel title="Audit control center" description="Monitor readiness, progress, and the next chapter from one place." actions={<StatusBadge value={vda63AuditInfo.auditStatus} />}>
+      <Panel
+        title="Audit control center"
+        description="Monitor readiness, progress, and the next chapter from one place."
+        actions={
+          <label className="panel-inline-field">
+            <span>Audit status</span>
+            <select value={vda63AuditInfo.auditStatus} onChange={(event) => updateAuditInfo('auditStatus', event.target.value)}>
+              <option value="Not started">Not started</option>
+              <option value="In progress">In progress</option>
+              <option value="Completed">Completed</option>
+            </select>
+          </label>
+        }
+      >
         <div className="audit-control-grid">
           <div className="audit-control-primary">
             <div className="audit-control-header">
@@ -88,36 +103,32 @@ export default function Vda63AuditInfoPage() {
             <Field label="Audit title">
               <input value={audit.title} onChange={(event) => updateAuditTitle(event.target.value)} />
             </Field>
-            <Field label="Audit status">
-              <select value={vda63AuditInfo.auditStatus} onChange={(event) => updateAuditInfo('auditStatus', event.target.value)}>
-                <option value="Not started">Not started</option>
-                <option value="In progress">In progress</option>
-                <option value="Completed">Completed</option>
-              </select>
-            </Field>
             <Field label="Site">
               <input value={vda63AuditInfo.site} onChange={(event) => updateAuditInfo('site', event.target.value)} />
             </Field>
-            <Field label="Auditor">
-              <input value={vda63AuditInfo.auditor} onChange={(event) => updateAuditInfo('auditor', event.target.value)} />
+            <Field label="Lead auditor">
+              <WorkspaceUserSelect users={users} value={vda63AuditInfo.auditor} onChange={(value) => updateAuditInfo('auditor', value)} placeholder="Select lead auditor" />
             </Field>
             <Field label="Audit date">
               <input type="date" value={vda63AuditInfo.date} onChange={(event) => updateAuditInfo('date', event.target.value)} />
             </Field>
-            <Field label="Reference">
-              <input value={vda63AuditInfo.reference} onChange={(event) => updateAuditInfo('reference', event.target.value)} />
-            </Field>
-            <Field label="Department">
-              <input value={vda63AuditInfo.department} onChange={(event) => updateAuditInfo('department', event.target.value)} />
-            </Field>
             <Field label="Customer">
               <input value={vda63AuditInfo.customer ?? ''} onChange={(event) => updateAuditInfo('customer', event.target.value)} />
             </Field>
-            <Field label="Scope" full>
+            <Field label="Scope">
               <textarea rows={3} value={vda63AuditInfo.scope} onChange={(event) => updateAuditInfo('scope', event.target.value)} />
             </Field>
-            <Field label="Notes" full>
-              <textarea rows={4} value={vda63AuditInfo.notes} onChange={(event) => updateAuditInfo('notes', event.target.value)} />
+            <Field label="Notes">
+              <textarea rows={3} value={vda63AuditInfo.notes} onChange={(event) => updateAuditInfo('notes', event.target.value)} />
+            </Field>
+            <Field label="Audit team" full>
+              <AuditTeamEditor
+                users={users}
+                leadAuditor={vda63AuditInfo.auditor}
+                auditTeam={auditTeam}
+                onLeadAuditorChange={(value) => updateAuditInfo('auditor', value)}
+                onAuditTeamChange={updateAuditTeam}
+              />
             </Field>
           </div>
         </Panel>

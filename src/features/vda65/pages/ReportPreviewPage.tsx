@@ -24,7 +24,6 @@ export default function Vda65ReportPreviewPage() {
             { label: 'Audit date', value: vda65AuditInfo.date },
             { label: 'Site', value: vda65AuditInfo.site },
             { label: 'Auditor', value: vda65AuditInfo.auditor },
-            { label: 'Reference', value: vda65AuditInfo.reference },
             { label: 'Customer', value: vda65AuditInfo.customer ?? 'n/a' },
             { label: 'Product', value: vda65ProductInfo.productName },
             { label: 'Specification', value: vda65ProductInfo.productNumber },

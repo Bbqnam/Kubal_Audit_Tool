@@ -6,6 +6,7 @@ export const appNavigation: AppNavItem[] = [
   { label: 'Dashboard', to: '/' },
   { label: 'Planning', to: '/planning' },
   { label: 'Audit Library', to: '/audits' },
+  { label: 'Admin', to: '/admin/access' },
 ]
 
 const vda63SectionNavigation = [

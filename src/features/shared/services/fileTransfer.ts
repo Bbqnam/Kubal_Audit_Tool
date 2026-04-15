@@ -6,6 +6,7 @@ import { normalizeAuditRecordShape, synchronizeAuditRecord } from './auditFactor
 
 export const IMPORT_DATA_SHEET_NAME = 'Import Data'
 export const IMPORT_SCHEMA_VERSION = 1
+const TRANSFER_PAYLOAD_CHUNK_SIZE = 30000
 
 export type TransferEntityType = 'audit' | 'audit-library' | 'planning-library'
 
@@ -63,13 +64,17 @@ function findPlanningRecordMatchIndex(records: AuditPlanRecord[], importedRecord
 }
 
 export function createTransferSheetRows(entityType: TransferEntityType, label: string, payload: unknown, exportedAt = new Date().toISOString()) {
-  return [{
+  const serializedPayload = JSON.stringify(payload)
+  const chunks = serializedPayload.match(new RegExp(`.{1,${TRANSFER_PAYLOAD_CHUNK_SIZE}}`, 'g')) ?? ['']
+
+  return chunks.map((chunk, index) => ({
     Entity: entityType,
     'Schema Version': IMPORT_SCHEMA_VERSION,
     Label: label,
     'Exported At': exportedAt,
-    Payload: JSON.stringify(payload),
-  }]
+    'Payload Part': index + 1,
+    Payload: chunk,
+  }))
 }
 
 function parseTransferEnvelope(value: unknown): TransferEnvelope {
@@ -101,8 +106,23 @@ function parseWorkbookTransfer(workbook: XLSX.WorkBook): TransferEnvelope {
 
   const rows = XLSX.utils.sheet_to_json<Record<string, string | number>>(importSheet, { defval: '' })
   const firstRow = rows[0]
+  const payload = rows
+    .map((row, index) => ({
+      chunk:
+        typeof row.Payload === 'string'
+          ? row.Payload
+          : typeof row.Payload === 'number'
+            ? String(row.Payload)
+            : '',
+      part: Number(row['Payload Part'] ?? index + 1),
+      index,
+    }))
+    .filter((row) => row.chunk.length > 0)
+    .sort((left, right) => left.part - right.part || left.index - right.index)
+    .map((row) => row.chunk)
+    .join('')
 
-  if (!firstRow || typeof firstRow.Payload !== 'string') {
+  if (!firstRow || !payload) {
     throw new Error('Import Data sheet is missing the serialized payload.')
   }
 
@@ -111,7 +131,7 @@ function parseWorkbookTransfer(workbook: XLSX.WorkBook): TransferEnvelope {
     schemaVersion: Number(firstRow['Schema Version'] ?? IMPORT_SCHEMA_VERSION),
     exportedAt: String(firstRow['Exported At'] ?? new Date().toISOString()),
     label: String(firstRow.Label ?? 'Imported file'),
-    payload: JSON.parse(firstRow.Payload),
+    payload: JSON.parse(payload),
   })
 }
 

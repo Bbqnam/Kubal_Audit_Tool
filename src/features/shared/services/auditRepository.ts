@@ -1,11 +1,13 @@
-import type { AuditRecord } from '../../../types/audit'
+import type { AuditHistoryEntry, AuditRecord } from '../../../types/audit'
 import { APP_STORAGE_KEY, LEGACY_APP_STORAGE_KEY } from '../../../data/branding'
 import { assignReadableAuditRouteIds, createSeedAuditRecords, normalizeAuditRecordShape, synchronizeAuditRecord } from './auditFactory'
-import type { AuditPlanRecord, YearlyPlanningChecklistItem } from '../../../types/planning'
+import type { AuditPlanRecord, PlanningActivityLogEntry, YearlyPlanningChecklistItem } from '../../../types/planning'
 import { createSeedPlanningChecklist, createSeedPlanningRecords } from '../../planning/data/planningSeed'
-import { normalizePlanningRecordShape } from '../../planning/services/planningFactory'
+import { normalizePlanningActivityEntry, normalizePlanningRecordShape } from '../../planning/services/planningFactory'
 import { mergePlanningYears } from '../../planning/services/planningUtils'
 import { createAuditReferenceId } from '../../../utils/traceability'
+import type { WorkspaceUser } from '../../../types/access'
+import { mergeWorkspaceUsers } from '../../../utils/userDirectory'
 
 export type AuditRepository = {
   loadWorkspace: () => WorkspaceSnapshot
@@ -14,7 +16,11 @@ export type AuditRepository = {
 
 export type WorkspaceSnapshot = {
   audits: AuditRecord[]
+  auditLibraryHistory: AuditHistoryEntry[]
+  users: WorkspaceUser[]
   planningRecords: AuditPlanRecord[]
+  planningActivityLog: PlanningActivityLogEntry[]
+  activePlanningUserId: string | null
   planningYears: number[]
   planningChecklist: YearlyPlanningChecklistItem[]
 }
@@ -24,11 +30,16 @@ function hasStorage() {
 }
 
 function createSeedWorkspace(): WorkspaceSnapshot {
+  const audits = createSeedAuditRecords()
   const planningRecords = createSeedPlanningRecords()
 
   return {
-    audits: createSeedAuditRecords(),
+    audits,
+    auditLibraryHistory: [],
+    users: mergeWorkspaceUsers([]),
     planningRecords,
+    planningActivityLog: [],
+    activePlanningUserId: null,
     planningYears: mergePlanningYears(planningRecords),
     planningChecklist: createSeedPlanningChecklist(),
   }
@@ -68,6 +79,60 @@ function ensureTraceabilityIds(audits: AuditRecord[], planningRecords: AuditPlan
   }
 }
 
+function inferHistorySubjectAuditId(entry: AuditHistoryEntry) {
+  if (entry.subjectAuditId) {
+    return entry.subjectAuditId
+  }
+
+  const matches = entry.description.match(/AUD-\d{4}-\d{3}/g)
+
+  if (!matches?.length) {
+    return undefined
+  }
+
+  return entry.actionType === 'duplicated' && matches.length > 1 ? matches[matches.length - 1] : matches[0]
+}
+
+function inferHistorySubjectLabel(entry: AuditHistoryEntry, subjectAuditId?: string) {
+  if (entry.subjectLabel) {
+    return entry.subjectLabel
+  }
+
+  const labelMatch = entry.description.match(/(AUD-\d{4}-\d{3}\s·\s.+?)(?=\.|:| from planning record| from the audit library|$)/)
+
+  return labelMatch?.[1]?.trim() ?? subjectAuditId
+}
+
+function normalizeAuditLibraryHistory(history: AuditHistoryEntry[]) {
+  return history.reduce<AuditHistoryEntry[]>((current, entry) => {
+    const subjectAuditId = inferHistorySubjectAuditId(entry)
+    const subjectLabel = inferHistorySubjectLabel(entry, subjectAuditId)
+    const normalizedEntry: AuditHistoryEntry = {
+      ...entry,
+      actionType: entry.actionType === 'status change' ? 'updated' : entry.actionType,
+      description: (entry.actionType === 'updated' || entry.actionType === 'status change')
+        ? `Edited ${subjectLabel ?? subjectAuditId ?? 'audit record'}.`
+        : entry.description,
+      subjectAuditId,
+      subjectLabel,
+    }
+
+    if (normalizedEntry.actionType !== 'updated' || !normalizedEntry.subjectAuditId) {
+      return [...current, normalizedEntry]
+    }
+
+    const existingIndex = current.findLastIndex((candidate) =>
+      candidate.actionType === 'updated' && candidate.subjectAuditId === normalizedEntry.subjectAuditId,
+    )
+
+    if (existingIndex === -1) {
+      return [...current, normalizedEntry]
+    }
+
+    return current.map((candidate, index) => (index === existingIndex ? normalizedEntry : candidate))
+  }, [])
+}
+
 export function createLocalStorageAuditRepository(): AuditRepository {
   return {
     loadWorkspace: () => {
@@ -95,9 +160,19 @@ export function createLocalStorageAuditRepository(): AuditRepository {
               audits: Array.isArray(parsed.audits)
                 ? parsed.audits.map((record) => synchronizeAuditRecord(normalizeAuditRecordShape(record), record.updatedAt))
                 : seedWorkspace.audits,
+              auditLibraryHistory: Array.isArray((parsed as WorkspaceSnapshot).auditLibraryHistory)
+                ? normalizeAuditLibraryHistory((parsed as WorkspaceSnapshot).auditLibraryHistory)
+                : seedWorkspace.auditLibraryHistory,
+              users: Array.isArray((parsed as WorkspaceSnapshot).users) ? (parsed as WorkspaceSnapshot).users : seedWorkspace.users,
               planningRecords: Array.isArray(parsed.planningRecords)
                 ? parsed.planningRecords.map((record) => normalizePlanningRecordShape(record))
                 : seedWorkspace.planningRecords,
+              planningActivityLog: Array.isArray((parsed as WorkspaceSnapshot).planningActivityLog)
+                ? (parsed as WorkspaceSnapshot).planningActivityLog.map((entry) => normalizePlanningActivityEntry(entry))
+                : seedWorkspace.planningActivityLog,
+              activePlanningUserId: typeof (parsed as WorkspaceSnapshot).activePlanningUserId === 'string'
+                ? (parsed as WorkspaceSnapshot).activePlanningUserId
+                : seedWorkspace.activePlanningUserId,
               planningYears: mergePlanningYears(
                 Array.isArray(parsed.planningRecords)
                   ? parsed.planningRecords.map((record) => normalizePlanningRecordShape(record))
@@ -122,7 +197,10 @@ export function createLocalStorageAuditRepository(): AuditRepository {
         const workspace = {
           ...rawWorkspace,
           audits,
+          users: mergeWorkspaceUsers(rawWorkspace.users ?? seedWorkspace.users),
           planningRecords,
+          planningActivityLog: rawWorkspace.planningActivityLog.map((entry) => normalizePlanningActivityEntry(entry)),
+          activePlanningUserId: rawWorkspace.activePlanningUserId,
           planningYears: mergePlanningYears(planningRecords, rawWorkspace.planningYears),
         }
 

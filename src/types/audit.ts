@@ -48,7 +48,15 @@ export type NonconformityType = 'Major nonconformity' | 'Minor nonconformity' | 
 
 export type AuditLifecycleStatus = 'Not started' | 'In progress' | 'Completed'
 
-export type AuditHistoryActionType = 'created' | 'updated' | 'status change' | 'action added' | 'action updated'
+export type AuditHistoryActionType =
+  | 'created'
+  | 'updated'
+  | 'status change'
+  | 'action added'
+  | 'action updated'
+  | 'duplicated'
+  | 'imported'
+  | 'deleted'
 
 export type AuditInfo = {
   site: string
@@ -242,6 +250,8 @@ export type AuditHistoryEntry = {
   actionType: AuditHistoryActionType
   description: string
   actor: string
+  subjectAuditId?: string
+  subjectLabel?: string
 }
 
 export type AuditSummaryPreview = {
@@ -250,10 +260,17 @@ export type AuditSummaryPreview = {
   resultPreview?: string
 }
 
+export type AuditParticipantRole = 'Lead auditor' | 'Auditor' | 'Observer'
+
+export type AuditParticipant = {
+  id: string
+  userName: string
+  role: AuditParticipantRole
+}
+
 export type Vda63AuditData = {
   auditInfo: AuditInfo
   responses: Vda63QuestionResponse[]
-  participants: string[]
   chapterScope: Vda63ChapterKey[]
 }
 
@@ -289,6 +306,7 @@ export type AuditRecordBase = {
   updatedBy: string
   lastModifiedBy: string
   summary: AuditSummaryPreview
+  auditTeam: AuditParticipant[]
   actions: ActionPlanItem[]
   history: AuditHistoryEntry[]
 }

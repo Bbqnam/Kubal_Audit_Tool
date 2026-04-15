@@ -52,6 +52,7 @@ export function createAuditHistoryEntry(
   description: string,
   timestamp = new Date().toISOString(),
   actor = DEFAULT_AUDIT_ACTOR,
+  metadata?: Pick<AuditHistoryEntry, 'subjectAuditId' | 'subjectLabel'>,
 ): AuditHistoryEntry {
   return {
     id: createId('audit-history'),
@@ -59,6 +60,7 @@ export function createAuditHistoryEntry(
     actionType,
     description,
     actor,
+    ...metadata,
   }
 }
 
