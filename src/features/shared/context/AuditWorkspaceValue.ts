@@ -1,5 +1,5 @@
 import { createContext } from 'react'
-import type { WorkspaceUser } from '../../../types/access'
+import type { WorkspaceUser, WorkspaceUserHistoryEntry } from '../../../types/access'
 import type {
   AuditHistoryEntry,
   AuditRecord,
@@ -12,6 +12,7 @@ import type { MergeResult } from '../services/fileTransfer'
 export type AuditWorkspaceContextValue = {
   audits: AuditRecord[]
   auditLibraryHistory: AuditHistoryEntry[]
+  userAdminHistory: WorkspaceUserHistoryEntry[]
   users: WorkspaceUser[]
   planningRecords: AuditPlanRecord[]
   planningActivityLog: PlanningActivityLogEntry[]
@@ -39,7 +40,7 @@ export type AuditWorkspaceContextValue = {
   updatePlanRecord: (id: string, updater: (record: AuditPlanRecord) => AuditPlanRecord) => void
   importAudits: (records: AuditRecord[]) => MergeResult<AuditRecord>
   importPlanningRecords: (records: AuditPlanRecord[]) => MergeResult<AuditPlanRecord>
-  createUser: () => WorkspaceUser
+  createUser: (seed?: Partial<WorkspaceUser>) => WorkspaceUser
   updateUser: (id: string, updater: (user: WorkspaceUser) => WorkspaceUser) => void
   deleteUser: (id: string) => void
   setActivePlanningUser: (id: string) => void

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import type { WorkspaceUser } from '../types/access'
 import type { AuditParticipant } from '../types/audit'
 import WorkspaceUserSelect from './WorkspaceUserSelect'
@@ -21,6 +21,8 @@ export default function AuditTeamEditor({
   onAuditTeamChange: (value: AuditParticipant[]) => void
 }) {
   const [searchValue, setSearchValue] = useState('')
+  const [isSearchOpen, setIsSearchOpen] = useState(false)
+  const searchRegionRef = useRef<HTMLDivElement | null>(null)
   const selectedNames = useMemo(
     () => new Set([leadAuditor, ...auditTeam.map((participant) => participant.userName)].filter(Boolean)),
     [auditTeam, leadAuditor],
@@ -40,6 +42,7 @@ export default function AuditTeamEditor({
       return user.name.toLowerCase().includes(normalizedSearch)
     })
   }, [searchValue, selectedNames, users])
+  const hasSearch = searchValue.trim().length > 0
 
   return (
     <div className="audit-team-editor">
@@ -59,39 +62,58 @@ export default function AuditTeamEditor({
       </div>
 
       <div className="audit-team-secondary">
-        <label className="field">
-          <span>Add auditor / observer</span>
-          <input
-            value={searchValue}
-            onChange={(event) => setSearchValue(event.target.value)}
-            placeholder="Search and add person"
-          />
-        </label>
+        <div
+          ref={searchRegionRef}
+          className="audit-team-search-region"
+          onBlur={(event) => {
+            if (!searchRegionRef.current?.contains(event.relatedTarget as Node | null)) {
+              setIsSearchOpen(false)
+            }
+          }}
+        >
+          <label className="field">
+            <span>Add auditor / observer</span>
+            <input
+              value={searchValue}
+              onFocus={() => setIsSearchOpen(true)}
+              onChange={(event) => {
+                setSearchValue(event.target.value)
+                setIsSearchOpen(true)
+              }}
+              placeholder="Search people"
+            />
+          </label>
 
-        {searchValue.trim() && searchableUsers.length ? (
-          <div className="participant-search-results">
-            {searchableUsers.slice(0, 5).map((user) => (
-              <button
-                key={user.id}
-                type="button"
-                className="participant-search-option"
-                onClick={() => {
-                  onAuditTeamChange([
-                    ...auditTeam,
-                    {
-                      id: createParticipantId(user.id),
-                      userName: user.name,
-                      role: 'Auditor',
-                    },
-                  ])
-                  setSearchValue('')
-                }}
-              >
-                <strong>{user.name}</strong>
-              </button>
-            ))}
-          </div>
-        ) : null}
+          {isSearchOpen ? searchableUsers.length ? (
+            <div className="participant-search-results">
+              {searchableUsers.map((user) => (
+                <button
+                  key={user.id}
+                  type="button"
+                  className="participant-search-option"
+                  onClick={() => {
+                    onAuditTeamChange([
+                      ...auditTeam,
+                      {
+                        id: createParticipantId(user.id),
+                        userName: user.name,
+                        role: 'Auditor',
+                      },
+                    ])
+                    setSearchValue('')
+                    setIsSearchOpen(false)
+                  }}
+                >
+                  <strong>{user.name}</strong>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div className="participant-search-empty">
+              {hasSearch ? 'No matching auditors found.' : 'All available auditors are already added.'}
+            </div>
+          ) : null}
+        </div>
 
         {auditTeam.length ? (
           <div className="participant-selected-list">

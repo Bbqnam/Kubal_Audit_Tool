@@ -1,5 +1,5 @@
 import { APP_STORAGE_KEY, LEGACY_APP_STORAGE_KEY } from '../../../data/branding'
-import type { WorkspaceUser } from '../../../types/access'
+import type { WorkspaceUser, WorkspaceUserHistoryEntry } from '../../../types/access'
 import type { AuditHistoryEntry, AuditRecord } from '../../../types/audit'
 import type { AuditPlanRecord, YearlyPlanningChecklistItem } from '../../../types/planning'
 import { createSeedPlanningChecklist, createSeedPlanningRecords } from '../../planning/data/planningSeed'
@@ -17,6 +17,7 @@ export interface AuditRepository {
 export type WorkspaceSnapshot = {
   audits: AuditRecord[]
   auditLibraryHistory: AuditHistoryEntry[]
+  userAdminHistory: WorkspaceUserHistoryEntry[]
   users: WorkspaceUser[]
   planningRecords: AuditPlanRecord[]
   planningYears: number[]
@@ -38,6 +39,7 @@ export function createSeedWorkspace(): WorkspaceSnapshot {
   return {
     audits,
     auditLibraryHistory: [],
+    userAdminHistory: [],
     users: mergeWorkspaceUsers([]),
     planningRecords,
     planningYears: mergePlanningYears(planningRecords),
@@ -173,6 +175,9 @@ export function hydrateWorkspaceSnapshot(parsed: WorkspaceSnapshot | AuditRecord
         auditLibraryHistory: Array.isArray((parsed as WorkspaceSnapshot).auditLibraryHistory)
           ? normalizeAuditLibraryHistory((parsed as WorkspaceSnapshot).auditLibraryHistory)
           : seedWorkspace.auditLibraryHistory,
+        userAdminHistory: Array.isArray((parsed as WorkspaceSnapshot).userAdminHistory)
+          ? (parsed as WorkspaceSnapshot).userAdminHistory
+          : seedWorkspace.userAdminHistory,
         users: Array.isArray((parsed as WorkspaceSnapshot).users) ? (parsed as WorkspaceSnapshot).users : seedWorkspace.users,
         planningRecords: Array.isArray(parsed.planningRecords)
           ? parsed.planningRecords.map((record) => normalizePlanningRecordShape(record))
@@ -202,6 +207,7 @@ export function hydrateWorkspaceSnapshot(parsed: WorkspaceSnapshot | AuditRecord
   return {
     ...rawWorkspace,
     audits,
+    userAdminHistory: rawWorkspace.userAdminHistory,
     users: mergeWorkspaceUsers(rawWorkspace.users ?? seedWorkspace.users),
     planningRecords,
     planningYears: mergePlanningYears(planningRecords, rawWorkspace.planningYears),

@@ -1,15 +1,14 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
+import HistoryModal from '../../../components/HistoryModal'
 import { Panel } from '../../../components/ui'
 import { ButtonLabel } from '../../../components/icons'
 import { planningStatusFilterOptions } from '../../../config/domain/statuses'
 import { useAuditLibrary } from '../../shared/context/useAuditLibrary'
 import { auditPlanningStandardOptions } from '../data/planningSeed'
-import PlanningActivityFeed from '../components/PlanningActivityFeed'
 import PlanningPageHeader from '../components/PlanningPageHeader'
 import PlanningMonthCalendar from '../components/PlanningMonthCalendar'
 import PlanningCompletionModal from '../components/PlanningCompletionModal'
-import PlanningHistoryModal from '../components/PlanningHistoryModal'
 import PlanningRecordModal, { type PlanningEditorDraft } from '../components/PlanningRecordModal'
 import { getDerivedPlanStatus, getMonthDateRange, getPlanningDepartmentOptions, getPlanningLegendEntries, planningMonthLabels, summarizePlans } from '../services/planningUtils'
 import { updatePlanWithHistory } from '../services/planningFactory'
@@ -84,7 +83,7 @@ export default function YearCalendarPage() {
   const statusFilter = searchParams.get('status') ?? 'all'
   const [editorState, setEditorState] = useState<CalendarEditorState | null>(null)
   const [completionRecordId, setCompletionRecordId] = useState<string | null>(null)
-  const [historyRecordId, setHistoryRecordId] = useState<string | null>(null)
+  const [activityHistoryOpen, setActivityHistoryOpen] = useState(false)
   const departmentOptions = getPlanningDepartmentOptions(planningRecords)
   const focusedRecordId = searchParams.get('record')
   const focusedRecord = focusedRecordId ? getPlanById(focusedRecordId) ?? null : null
@@ -102,12 +101,19 @@ export default function YearCalendarPage() {
   })
   const editorRecord = editorState?.mode === 'edit' ? getPlanById(editorState.recordId) ?? null : null
   const completionRecord = completionRecordId ? getPlanById(completionRecordId) ?? null : null
-  const historyRecord = historyRecordId ? getPlanById(historyRecordId) ?? null : null
   const selectedPeriodLabel = `${planningMonthLabels[selectedMonth - 1]} ${selectedYear}`
   const selectedMonthSummary = summarizePlans(selectedMonthRecords)
-  const visibleActivityEntries = planningActivityLog
-    .filter((entry) => entry.year === selectedYear || selectedMonthRecords.some((record) => record.id === entry.recordId))
-    .slice(0, 8)
+  const visibleActivityEntries = planningActivityLog.filter(
+    (entry) => entry.year === selectedYear || selectedMonthRecords.some((record) => record.id === entry.recordId),
+  )
+  const planningHistoryItems = visibleActivityEntries.map((entry) => ({
+    id: entry.id,
+    timestamp: entry.timestamp,
+    badge: entry.action,
+    title: entry.recordTitle || entry.checklistTitle || (entry.year ? String(entry.year) : entry.entityType),
+    description: entry.summary,
+    meta: `${entry.actorName} · ${entry.actorPosition}`,
+  }))
   const searchParamString = searchParams.toString()
   const focusedRecordNeedsReframe = Boolean(
     focusedRecordId
@@ -254,7 +260,6 @@ export default function YearCalendarPage() {
     deletePlanRecord(recordId)
     setEditorState(null)
     setCompletionRecordId((current) => (current === recordId ? null : current))
-    setHistoryRecordId((current) => (current === recordId ? null : current))
   }
 
   function handleOpenReport(recordId: string) {
@@ -340,11 +345,9 @@ export default function YearCalendarPage() {
                   <ButtonLabel icon="close" label={`Clear ${planningStatusFilterOptions.find((option) => option.value === statusFilter)?.label ?? 'filter'}`} />
                 </button>
               ) : null}
-              {focusedRecord ? (
-                <button type="button" className="button button-secondary button-small planning-inline-action" onClick={() => setHistoryRecordId(focusedRecord.id)}>
-                  <ButtonLabel icon="history" label="History" />
-                </button>
-              ) : null}
+              <button type="button" className="button button-secondary button-small planning-inline-action" onClick={() => setActivityHistoryOpen(true)}>
+                <ButtonLabel icon="history" label="History" />
+              </button>
               <button type="button" className="button button-secondary button-small planning-inline-action" onClick={() => setEditorState({ mode: 'create', defaultStartDate: buildMonthStartDate() })}>
                 <ButtonLabel icon="add" label="Quick create" />
               </button>
@@ -386,16 +389,6 @@ export default function YearCalendarPage() {
         />
       </Panel>
 
-      <Panel
-        title="Tracking log"
-        description="Only major planning actions are recorded here so the timeline stays useful."
-      >
-        <PlanningActivityFeed
-          entries={visibleActivityEntries}
-          emptyMessage="Complete, delete, reschedule, link, or yearly checklist updates to start building the planning log."
-        />
-      </Panel>
-
       {editorState ? (
         <PlanningRecordModal
           key={editorState.mode === 'create' ? `calendar-create-${editorState.defaultStartDate ?? 'default'}` : `calendar-edit-${editorState.recordId}`}
@@ -420,7 +413,16 @@ export default function YearCalendarPage() {
         />
       ) : null}
 
-      {historyRecord ? <PlanningHistoryModal record={historyRecord} onClose={() => setHistoryRecordId(null)} /> : null}
+      {activityHistoryOpen ? (
+        <HistoryModal
+          title="Planning history"
+          description={`Major planning actions for ${selectedPeriodLabel}.`}
+          items={planningHistoryItems}
+          emptyTitle="No major planning activity yet."
+          emptyDescription="Complete, delete, reschedule, link, or yearly checklist updates to start building the planning log."
+          onClose={() => setActivityHistoryOpen(false)}
+        />
+      ) : null}
     </div>
   )
 }

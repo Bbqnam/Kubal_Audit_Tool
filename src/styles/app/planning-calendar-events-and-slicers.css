@@ -1,0 +1,820 @@
+.planning-day-cell {
+  min-height: 7.4rem;
+  padding: 0.48rem;
+  border-radius: 0.82rem;
+  border: 1px solid rgba(32, 48, 69, 0.08);
+  background: rgba(255, 255, 255, 0.78);
+  display: grid;
+  align-content: start;
+  gap: 0.32rem;
+  text-align: left;
+  cursor: pointer;
+  transition: transform 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
+}
+
+.planning-day-cell:hover {
+  transform: translateY(-1px);
+  border-color: rgba(176, 117, 46, 0.2);
+  box-shadow: 0 16px 28px rgba(16, 24, 40, 0.08);
+}
+
+.planning-day-cell:focus-visible {
+  outline: 2px solid rgba(53, 110, 194, 0.32);
+  outline-offset: 2px;
+}
+
+.planning-day-cell-muted {
+  background: rgba(247, 248, 250, 0.72);
+}
+
+.planning-day-cell-empty {
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.planning-day-cell-weekend {
+  background:
+    linear-gradient(180deg, rgba(246, 215, 197, 0.34), rgba(255, 248, 244, 0.78)),
+    rgba(255, 255, 255, 0.82);
+}
+
+.planning-day-cell-holiday {
+  border-color: rgba(197, 82, 68, 0.22);
+  background:
+    linear-gradient(180deg, rgba(244, 191, 191, 0.34), rgba(255, 245, 245, 0.88)),
+    rgba(255, 255, 255, 0.88);
+}
+
+.planning-day-cell-muted.planning-day-cell-weekend {
+  background:
+    linear-gradient(180deg, rgba(246, 215, 197, 0.24), rgba(250, 247, 245, 0.8)),
+    rgba(247, 248, 250, 0.82);
+}
+
+.planning-day-cell-muted.planning-day-cell-holiday {
+  background:
+    linear-gradient(180deg, rgba(244, 191, 191, 0.22), rgba(250, 246, 246, 0.86)),
+    rgba(247, 248, 250, 0.82);
+}
+
+.planning-day-cell-today {
+  border-color: rgba(41, 152, 132, 0.24);
+  background:
+    linear-gradient(180deg, rgba(57, 174, 150, 0.12), rgba(255, 255, 255, 0.94)),
+    rgba(255, 255, 255, 0.88);
+  box-shadow: 0 14px 28px rgba(34, 117, 103, 0.08);
+}
+
+.planning-day-cell-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.3rem;
+}
+
+.planning-day-cell-title {
+  display: grid;
+  gap: 0.08rem;
+}
+
+.planning-day-cell-header span {
+  font-size: 0.86rem;
+  font-weight: 800;
+}
+
+.planning-day-cell-date-today {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.62rem;
+  min-height: 1.62rem;
+  padding: 0 0.38rem;
+  border-radius: 999px;
+  background: rgba(41, 152, 132, 0.14);
+  color: rgba(24, 101, 88, 0.98);
+}
+
+.planning-day-cell-title em {
+  color: #b54739;
+  font-size: 0.58rem;
+  font-style: normal;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.planning-day-cell-header small {
+  color: var(--muted);
+  font-size: 0.66rem;
+}
+
+.planning-day-cell-today-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.18rem;
+  padding: 0.08rem 0.34rem;
+  border-radius: 999px;
+  background: rgba(41, 152, 132, 0.12);
+  color: rgba(24, 101, 88, 0.96);
+  font-size: 0.58rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.planning-day-cell-events,
+.planning-cell-stack {
+  display: grid;
+  gap: 0.22rem;
+}
+
+.planning-calendar-event {
+  width: 100%;
+  display: grid;
+  gap: 0.22rem;
+  padding: 0.3rem 0.34rem;
+  border-radius: 0.64rem;
+  border: 1px solid transparent;
+  border-left-width: 4px;
+  text-align: left;
+  cursor: pointer;
+  transition: transform 120ms ease, box-shadow 120ms ease;
+}
+
+.planning-calendar-event:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 16px rgba(16, 24, 40, 0.08);
+}
+
+.planning-calendar-event-header,
+.planning-calendar-event-footer {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.28rem;
+}
+
+.planning-calendar-event strong {
+  font-size: 0.68rem;
+  line-height: 1.12;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  flex: 1 1 auto;
+}
+
+.planning-calendar-event span {
+  color: inherit;
+  opacity: 0.92;
+}
+
+.planning-calendar-event-caption {
+  min-width: 0;
+  color: inherit;
+  opacity: 0.82;
+  font-size: 0.6rem;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.planning-calendar-event-actions {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 0.16rem;
+  justify-content: flex-end;
+  margin-left: auto;
+  flex: 0 0 auto;
+}
+
+.planning-calendar-event-action,
+.planning-calendar-event-complete {
+  appearance: none;
+  border: 1px solid rgba(41, 152, 132, 0.2);
+  background: rgba(41, 152, 132, 0.1);
+  color: rgba(24, 101, 88, 0.98);
+  border-radius: 999px;
+  min-height: 1rem;
+  padding: 0.02rem 0.28rem;
+  font-size: 0.54rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: background-color 140ms ease, border-color 140ms ease, transform 140ms ease;
+}
+
+.planning-calendar-event-action {
+  border-color: rgba(38, 104, 172, 0.2);
+  background: rgba(38, 104, 172, 0.1);
+  color: rgba(29, 77, 125, 0.98);
+}
+
+.planning-calendar-event-action:hover,
+.planning-calendar-event-complete:hover {
+  background: rgba(41, 152, 132, 0.16);
+  border-color: rgba(41, 152, 132, 0.28);
+  transform: translateY(-1px);
+}
+
+.planning-calendar-event-action:hover {
+  background: rgba(38, 104, 172, 0.16);
+  border-color: rgba(38, 104, 172, 0.28);
+}
+
+.planning-calendar-event .status-badge {
+  padding: 0.06rem 0.24rem;
+  font-size: 0.5rem;
+  flex: 0 0 auto;
+}
+
+.planning-status-accent-planned {
+  border-left-color: #2b6fb8;
+}
+
+.planning-status-accent-in-progress {
+  border-left-color: #d28b24;
+}
+
+.planning-status-accent-completed {
+  border-left-color: #2d8a54;
+}
+
+.planning-status-accent-overdue {
+  border-left-color: #c55244;
+}
+
+.planning-calendar-more {
+  padding: 0.18rem 0.36rem;
+  color: var(--muted);
+  font-size: 0.62rem;
+  font-weight: 700;
+}
+
+.planning-calendar-empty {
+  display: grid;
+  place-items: center;
+  min-height: 9rem;
+  padding: 0.8rem;
+  border-radius: 0.88rem;
+  color: var(--muted);
+  font-size: 0.84rem;
+  border: 1px dashed rgba(32, 48, 69, 0.14);
+  background: rgba(20, 34, 49, 0.03);
+}
+
+.planning-year-button-active {
+  border-color: rgba(176, 117, 46, 0.26);
+  color: var(--accent-strong);
+  box-shadow: 0 10px 20px rgba(138, 85, 24, 0.08);
+}
+
+.planning-cell-item strong {
+  font-size: 0.84rem;
+}
+
+.planning-checklist-cell {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.planning-more-details,
+.planning-quick-shift {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.7rem;
+}
+
+.planning-quick-shift span {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.planning-more-details {
+  margin-top: 0.1rem;
+}
+
+.planning-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.38rem;
+}
+
+.planning-calendar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.planning-calendar-chip {
+  padding: 0.18rem 0.45rem;
+  border-radius: 999px;
+  background: rgba(20, 34, 49, 0.05);
+  color: var(--muted-strong);
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.planning-completion-summary {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 0.38rem;
+  padding: 0.8rem;
+  border-radius: 0.95rem;
+  background: rgba(20, 34, 49, 0.04);
+}
+
+.planning-completion-date-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.planning-history-list {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.planning-history-item {
+  display: grid;
+  gap: 0.34rem;
+  padding: 0.82rem;
+  border-radius: 0.95rem;
+  background: rgba(20, 34, 49, 0.04);
+  border: 1px solid rgba(32, 48, 69, 0.08);
+}
+
+.planning-history-item-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.planning-history-item-header span {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.planning-roadmap {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.planning-roadmap-header,
+.planning-roadmap-row {
+  display: grid;
+  grid-template-columns: minmax(12rem, 1.2fr) repeat(3, minmax(0, 1fr));
+  gap: 0.6rem;
+}
+
+.planning-roadmap-header {
+  color: var(--muted);
+  font-size: 0.76rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.planning-roadmap-label,
+.planning-roadmap-cell {
+  padding: 0.75rem;
+  border-radius: 0.95rem;
+  border: 1px solid rgba(32, 48, 69, 0.08);
+  background: rgba(255, 255, 255, 0.74);
+}
+
+.planning-roadmap-label {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.planning-roadmap-label span {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.planning-roadmap-cell {
+  display: grid;
+  gap: 0.45rem;
+  align-content: start;
+  min-height: 5.4rem;
+}
+
+.planning-roadmap-chip {
+  display: grid;
+  gap: 0.22rem;
+  padding: 0.55rem;
+  border-radius: 0.78rem;
+  background: rgba(20, 34, 49, 0.04);
+}
+
+.planning-roadmap-chip-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.planning-roadmap-chip span,
+.planning-strategy-card p {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.planning-strategy-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.7rem;
+}
+
+.planning-strategy-card {
+  display: grid;
+  gap: 0.55rem;
+  padding: 0.85rem;
+  border-radius: 1rem;
+  border: 1px solid rgba(32, 48, 69, 0.08);
+  background: rgba(255, 255, 255, 0.78);
+}
+
+.planning-strategy-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.planning-report-list {
+  display: grid;
+  gap: 0.78rem;
+}
+
+.planning-distribution-row {
+  display: grid;
+  gap: 0.5rem;
+  padding: 0.8rem;
+  border-radius: 0.98rem;
+  border: 1px solid rgba(32, 48, 69, 0.08);
+  background: rgba(20, 34, 49, 0.03);
+}
+
+.planning-distribution-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.8rem;
+}
+
+.planning-distribution-title {
+  display: grid;
+  gap: 0.18rem;
+}
+
+.planning-distribution-title strong {
+  font-size: 0.96rem;
+}
+
+.planning-distribution-title span {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.planning-distribution-standard {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  min-height: 1.8rem;
+  padding: 0.14rem 0.58rem;
+  border-radius: 999px;
+  border: 1px solid transparent;
+}
+
+.planning-distribution-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.38rem;
+  align-items: center;
+}
+
+.planning-distribution-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.7rem;
+  padding: 0.16rem 0.52rem;
+  border-radius: 999px;
+  background: rgba(20, 34, 49, 0.07);
+  color: var(--muted-strong);
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
+.planning-distribution-chip-success {
+  background: rgba(34, 197, 94, 0.12);
+  color: #15803d;
+}
+
+.planning-distribution-chip-open {
+  background: rgba(59, 130, 246, 0.12);
+  color: #1d4ed8;
+}
+
+.planning-distribution-chip-danger {
+  background: rgba(239, 68, 68, 0.12);
+  color: #b91c1c;
+}
+
+.planning-distribution-metrics strong {
+  font-size: 0.86rem;
+}
+
+.planning-distribution-track {
+  display: flex;
+  min-height: 0.82rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(20, 34, 49, 0.08);
+}
+
+.planning-distribution-segment {
+  min-width: 0;
+}
+
+.planning-distribution-segment-success {
+  background: #22c55e;
+}
+
+.planning-distribution-segment-open {
+  background: #60a5fa;
+}
+
+.planning-distribution-segment-danger {
+  background: #ef4444;
+}
+
+.planning-horizon-card {
+  align-content: center;
+}
+
+@media (max-width: 1180px) {
+  .app-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar {
+    width: 100%;
+    min-width: 0;
+    height: auto;
+    clip-path: none;
+    padding-bottom: 1rem;
+  }
+
+  .sidebar .brand-lockup,
+  .sidebar .sidebar-link-icon {
+    transform: none;
+  }
+
+  .sidebar .brand-lockup-copy,
+  .sidebar .sidebar-label,
+  .sidebar .sidebar-link-text,
+  .sidebar .sidebar-metadata,
+  .sidebar .sidebar-footer {
+    opacity: 1;
+    transform: none;
+    pointer-events: auto;
+  }
+
+  .sidebar-metadata {
+    margin-top: 0;
+  }
+
+  .grid-cards,
+  .grid-panels,
+  .metrics-grid,
+  .summary-grid,
+  .detail-list,
+  .dashboard-pulse,
+  .dashboard-pulse-insight-row,
+  .dashboard-main-grid,
+  .dashboard-secondary-grid,
+  .dashboard-chart-grid,
+  .planning-toolbar,
+  .input-grid,
+  .planning-quick-links,
+  .planning-strategy-grid,
+  .chapter-scope-grid,
+  .audit-guidance-grid,
+  .audit-control-grid,
+  .audit-control-status-row,
+  .chapter-jump-grid,
+  .summary-matrix-details {
+    grid-template-columns: 1fr;
+  }
+
+  .planning-calendar-hero {
+    grid-template-columns: 1fr;
+  }
+
+  .planning-calendar-hero-button {
+    min-width: 0;
+  }
+}
+
+@media (max-width: 760px) {
+  .topbar,
+  .section-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .dashboard-command-grid,
+  .dashboard-metrics-grid,
+  .planning-metrics-grid,
+  .planning-year-grid,
+  .dashboard-kpi-grid,
+  .dashboard-pulse-summary,
+  .dashboard-pulse-filters,
+  .dashboard-quick-actions,
+  .dashboard-action-list,
+  .dashboard-recent-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-pulse-head,
+  .dashboard-pulse-toolbar {
+    width: 100%;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .dashboard-pulse-toolbar,
+  .dashboard-pulse-filters {
+    justify-items: start;
+  }
+
+  .dashboard-pulse-filters .portfolio-slicer-pills {
+    justify-content: flex-start;
+  }
+
+  .planning-roadmap-header,
+  .planning-roadmap-row,
+  .planning-month-calendar-head,
+  .planning-month-calendar-row {
+    grid-template-columns: 1fr;
+  }
+
+  .planning-distribution-heading,
+  .planning-distribution-metrics {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .content-main,
+  .topbar,
+  .module-toolbar {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+
+  .content-main {
+    padding-bottom: 1rem;
+  }
+
+  .dashboard-card {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-month-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .report-summary-list li,
+  .report-summary-list > div,
+  .summary-evaluation,
+  .report-callout,
+  .audit-control-header,
+  .progress-meta,
+  .topbar-actions {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .table-card {
+    overflow-x: auto;
+  }
+}
+
+/* Portfolio slicers */
+.portfolio-filters-compact {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  background: rgba(255, 255, 255, 0.6);
+  border-radius: 0.75rem;
+  border: 1px solid rgba(32, 48, 69, 0.08);
+}
+
+.portfolio-slicer-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.portfolio-slicer-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--muted-strong);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.dashboard-pulse .portfolio-slicer-label {
+  color: rgba(231, 237, 245, 0.76);
+}
+
+.portfolio-slicer-pills {
+  display: flex;
+  gap: 0.25rem;
+  flex-wrap: wrap;
+}
+
+.portfolio-slicer-column {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.portfolio-left-panel {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.portfolio-right-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.portfolio-slicer-pill {
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.375rem;
+  border: 1px solid rgba(32, 48, 69, 0.12);
+  background: rgba(255, 255, 255, 0.8);
+  color: var(--muted-strong);
+  font-size: 0.7rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: center;
+  min-height: 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dashboard-pulse .portfolio-slicer-pill {
+  border-color: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(244, 247, 252, 0.9);
+}
+
+.portfolio-slicer-pill:hover {
+  background: rgba(53, 110, 194, 0.08);
+  border-color: rgba(53, 110, 194, 0.2);
+  color: #245592;
+}
+
+.dashboard-pulse .portfolio-slicer-pill:hover {
+  background: rgba(96, 165, 250, 0.18);
+  border-color: rgba(147, 197, 253, 0.26);
+  color: #f8fbff;
+}
+
+.portfolio-slicer-pill-active {
+  background: #356ec2;
+  border-color: #356ec2;
+  color: white;
+  font-weight: 600;
+}
+
+.portfolio-slicer-pill-active:hover {
+  background: #2e5f96;
+  border-color: #2e5f96;
+}
+
+.dashboard-pulse .portfolio-slicer-pill-active,
+.dashboard-pulse .portfolio-slicer-pill-active:hover {
+  background: #4b86de;
+  border-color: #4b86de;
+  color: #ffffff;
+}
+
+.dashboard-donut-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+}

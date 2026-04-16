@@ -4,7 +4,6 @@ import AuditTeamEditor from '../../../components/AuditTeamEditor'
 import ExportCenter from '../../../components/ExportCenter'
 import { ButtonLabel } from '../../../components/icons'
 import MetadataSection from '../../../components/MetadataSection'
-import WorkspaceUserSelect from '../../../components/WorkspaceUserSelect'
 import { getAuditSectionPath } from '../../../data/navigation'
 import { DetailList, Field, MetricCard, PageHeader, Panel } from '../../../components/ui'
 import { useVda65AuditWorkspace } from '../../shared/context/useVda65AuditWorkspace'
@@ -49,9 +48,6 @@ export default function Vda65AuditInfoPage() {
             </Field>
             <Field label="Site">
               <input value={vda65AuditInfo.site} onChange={(event) => updateAuditInfo('site', event.target.value)} />
-            </Field>
-            <Field label="Lead auditor">
-              <WorkspaceUserSelect users={users} value={vda65AuditInfo.auditor} onChange={(value) => updateAuditInfo('auditor', value)} placeholder="Select lead auditor" />
             </Field>
             <Field label="Audit date">
               <input type="date" value={vda65AuditInfo.date} onChange={(event) => updateAuditInfo('date', event.target.value)} />

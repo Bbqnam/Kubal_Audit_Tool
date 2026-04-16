@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import ActivityLog from '../components/ActivityLog'
 import ExportCenter from '../components/ExportCenter'
+import HistoryModal from '../components/HistoryModal'
 import { getAuditRecordHomePath } from '../data/navigation'
 import { auditStatusFilterOptions } from '../config/domain/statuses'
 import { useAuditLibrary } from '../features/shared/context/useAuditLibrary'
@@ -32,8 +32,22 @@ export default function AuditsPage() {
   const [sortKey, setSortKey] = useState<AuditSortKey>('updatedAt')
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
   const [currentPage, setCurrentPage] = useState(1)
+  const [historyOpen, setHistoryOpen] = useState(false)
   const statusFilter = searchParams.get('status') ?? 'all'
   const followUpFilter = searchParams.get('followUp') ?? 'all'
+  const libraryHistoryItems = useMemo(
+    () => [...auditLibraryHistory]
+      .sort((left, right) => right.timestamp.localeCompare(left.timestamp))
+      .map((entry) => ({
+        id: entry.id,
+        timestamp: entry.timestamp,
+        badge: entry.actionType,
+        title: entry.subjectLabel || entry.description,
+        description: entry.description,
+        meta: entry.actor,
+      })),
+    [auditLibraryHistory],
+  )
 
   const filteredAudits = useMemo(() => {
     const nextAudits = audits.filter((audit) => {
@@ -251,6 +265,9 @@ export default function AuditsPage() {
               onChange={(event) => void handleImportChange(event)}
               hidden
             />
+            <button type="button" className="button button-secondary button-small" onClick={() => setHistoryOpen(true)}>
+              <ButtonLabel icon="history" label="History" />
+            </button>
             <button type="button" className="button button-secondary button-small" onClick={() => importInputRef.current?.click()}>
               <ButtonLabel icon="open" label="Import audit file" />
             </button>
@@ -424,23 +441,22 @@ export default function AuditsPage() {
         {exportMessage ? <p className="export-feedback">{exportMessage}</p> : null}
       </Panel>
 
-      <Panel
-        title="Library activity log"
-        description="Tracks top-level created, edited, duplicated, imported, or deleted audit records across the audit library."
-      >
-        <ActivityLog
-          history={auditLibraryHistory}
-          emptyTitle="No audit library activity recorded yet."
-          emptyDescription="Top-level audit library changes will appear here automatically."
-          variant="library"
-        />
-      </Panel>
-
       <ExportCenter
         auditLabel="Audit Library"
         payload={filteredAudits}
         description="Library exports are also available at the collection level for future audit-portfolio reporting."
       />
+
+      {historyOpen ? (
+        <HistoryModal
+          title="Library history"
+          description="Top-level created, edited, duplicated, imported, and deleted audit records across the audit library."
+          items={libraryHistoryItems}
+          emptyTitle="No audit library activity recorded yet."
+          emptyDescription="Top-level audit library changes will appear here automatically."
+          onClose={() => setHistoryOpen(false)}
+        />
+      ) : null}
     </div>
   )
 }

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { AuditHistoryEntry, AuditRecord } from '../../../types/audit'
-import type { WorkspaceUser } from '../../../types/access'
+import type { WorkspaceUser, WorkspaceUserHistoryEntry } from '../../../types/access'
 import type { AuditPlanRecord, PlanningActivityLogEntry, PlanningActorSnapshot } from '../../../types/planning'
 import { AuditWorkspaceContext } from './AuditWorkspaceValue'
 import type { AuditWorkspaceContextValue } from './AuditWorkspaceValue'
@@ -39,6 +39,28 @@ function getPlanningActor(user: WorkspaceUser | null | undefined): PlanningActor
 }
 
 function prependPlanningActivityLog(log: PlanningActivityLogEntry[], entry: PlanningActivityLogEntry) {
+  return [entry, ...log].sort((left, right) => right.timestamp.localeCompare(left.timestamp))
+}
+
+function createUserHistoryEntry(
+  action: WorkspaceUserHistoryEntry['action'],
+  summary: string,
+  actor: PlanningActorSnapshot,
+  user?: WorkspaceUser,
+): WorkspaceUserHistoryEntry {
+  return {
+    id: typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `user-history-${Math.random().toString(36).slice(2, 10)}`,
+    timestamp: new Date().toISOString(),
+    action,
+    summary,
+    actorName: actor.name,
+    actorPosition: actor.position,
+    userId: user?.id ?? null,
+    userName: user?.name ?? null,
+  }
+}
+
+function prependUserAdminHistory(log: WorkspaceUserHistoryEntry[], entry: WorkspaceUserHistoryEntry) {
   return [entry, ...log].sort((left, right) => right.timestamp.localeCompare(left.timestamp))
 }
 
@@ -122,6 +144,7 @@ export function AuditWorkspaceProvider({ children }: { children: React.ReactNode
   const initialWorkspace = useMemo(() => repository.loadWorkspace(), [repository])
   const [audits, setAudits] = useState<AuditRecord[]>(initialWorkspace.audits)
   const [auditLibraryHistory, setAuditLibraryHistory] = useState<AuditHistoryEntry[]>(initialWorkspace.auditLibraryHistory)
+  const [userAdminHistory, setUserAdminHistory] = useState<WorkspaceUserHistoryEntry[]>(initialWorkspace.userAdminHistory)
   const [users, setUsers] = useState<WorkspaceUser[]>(initialWorkspace.users)
   const [planningRecords, setPlanningRecords] = useState<AuditPlanRecord[]>(initialWorkspace.planningRecords)
   const [planningActivityLog, setPlanningActivityLog] = useState<PlanningActivityLogEntry[]>(initialWorkspace.planningActivityLog)
@@ -153,6 +176,7 @@ export function AuditWorkspaceProvider({ children }: { children: React.ReactNode
       repository.saveWorkspace({
         audits,
         auditLibraryHistory,
+        userAdminHistory,
         users,
         planningRecords,
         planningActivityLog,
@@ -165,7 +189,7 @@ export function AuditWorkspaceProvider({ children }: { children: React.ReactNode
     }, 250)
 
     return () => window.clearTimeout(timeoutId)
-  }, [activePlanningUser, auditLibraryHistory, audits, planningActivityLog, planningChecklist, planningRecords, planningYears, repository, users])
+  }, [activePlanningUser, auditLibraryHistory, audits, planningActivityLog, planningChecklist, planningRecords, planningYears, repository, userAdminHistory, users])
 
   function renameAuditUserReferences(record: AuditRecord, previousName: string, nextName: string) {
     const sharedFields = {
@@ -239,6 +263,7 @@ export function AuditWorkspaceProvider({ children }: { children: React.ReactNode
     () => ({
       audits,
       auditLibraryHistory,
+      userAdminHistory,
       users,
       planningRecords,
       planningActivityLog,
@@ -639,25 +664,30 @@ export function AuditWorkspaceProvider({ children }: { children: React.ReactNode
         })))
         return mergeResult
       },
-      createUser: () => {
+      createUser: (seed) => {
         const placeholderBase = 'New user'
         const usedNames = new Set(users.map((user) => user.name))
-        let nextName = placeholderBase
+        const baseName = sanitizeUserName(seed?.name ?? '') || placeholderBase
+        let nextName = baseName
         let suffix = 2
 
         while (usedNames.has(nextName)) {
-          nextName = `${placeholderBase} ${suffix}`
+          nextName = `${baseName} ${suffix}`
           suffix += 1
         }
 
         const newUser = normalizeWorkspaceUser({
           name: nextName,
-          position: '',
-          permission: 'Edit',
+          position: seed?.position ?? '',
+          permission: seed?.permission ?? 'Edit',
         })
 
         setSaveState('Saving')
         setUsers((current) => [...current, newUser].sort((left, right) => left.name.localeCompare(right.name)))
+        setUserAdminHistory((current) => prependUserAdminHistory(
+          current,
+          createUserHistoryEntry('Created', `Added user ${newUser.name} with ${newUser.permission} access.`, planningActor, newUser),
+        ))
         return newUser
       },
       updateUser: (id, updater) => {
@@ -685,14 +715,45 @@ export function AuditWorkspaceProvider({ children }: { children: React.ReactNode
             .map((user) => (user.id === id ? { ...nextUser, name: nextName } : user))
             .sort((left, right) => left.name.localeCompare(right.name)),
         )
+        if (existingUser.permission !== nextUser.permission) {
+          setUserAdminHistory((current) => prependUserAdminHistory(
+            current,
+            createUserHistoryEntry(
+              'Permission changed',
+              `${nextName} permission changed from ${existingUser.permission} to ${nextUser.permission}.`,
+              planningActor,
+              { ...nextUser, name: nextName },
+            ),
+          ))
+        } else if (previousName !== nextName || existingUser.position !== nextUser.position) {
+          setUserAdminHistory((current) => prependUserAdminHistory(
+            current,
+            createUserHistoryEntry(
+              'Edited',
+              previousName !== nextName
+                ? `Renamed user ${previousName} to ${nextName}.`
+                : `Updated ${nextName} profile details.`,
+              planningActor,
+              { ...nextUser, name: nextName },
+            ),
+          ))
+        }
 
         if (previousName !== nextName) {
           setAudits((current) => current.map((record) => renameAuditUserReferences(record, previousName, nextName)))
         }
       },
       deleteUser: (id) => {
+        const existingUser = users.find((user) => user.id === id)
+
         setSaveState('Saving')
         setUsers((current) => current.filter((user) => user.id !== id))
+        if (existingUser) {
+          setUserAdminHistory((current) => prependUserAdminHistory(
+            current,
+            createUserHistoryEntry('Deleted', `Deleted user ${existingUser.name}.`, planningActor, existingUser),
+          ))
+        }
       },
       setActivePlanningUser: (id) => {
         if (!users.some((user) => user.id === id)) {
@@ -782,7 +843,7 @@ export function AuditWorkspaceProvider({ children }: { children: React.ReactNode
         })))
       },
     }),
-    [activePlanningUser, auditLibraryHistory, audits, lastSavedAt, planningActivityLog, planningChecklist, planningRecords, planningYears, saveState, users, planningActor],
+    [activePlanningUser, auditLibraryHistory, audits, lastSavedAt, planningActivityLog, planningChecklist, planningRecords, planningYears, saveState, userAdminHistory, users, planningActor],
   )
 
   return <AuditWorkspaceContext.Provider value={value}>{children}</AuditWorkspaceContext.Provider>

@@ -4,7 +4,6 @@ import AuditTeamEditor from '../../../components/AuditTeamEditor'
 import ExportCenter from '../../../components/ExportCenter'
 import { ButtonLabel } from '../../../components/icons'
 import MetadataSection from '../../../components/MetadataSection'
-import WorkspaceUserSelect from '../../../components/WorkspaceUserSelect'
 import { getAuditSectionPath, vda63ChapterTitles } from '../../../data/navigation'
 import { buildVda63Summary, chapterOrder, getVda63AnsweredCount, getVda63ChapterStatusLabel } from '../../../utils/auditUtils'
 import { DetailList, Field, MetricCard, PageHeader, Panel, ProgressBar } from '../../../components/ui'
@@ -105,9 +104,6 @@ export default function Vda63AuditInfoPage() {
             </Field>
             <Field label="Site">
               <input value={vda63AuditInfo.site} onChange={(event) => updateAuditInfo('site', event.target.value)} />
-            </Field>
-            <Field label="Lead auditor">
-              <WorkspaceUserSelect users={users} value={vda63AuditInfo.auditor} onChange={(value) => updateAuditInfo('auditor', value)} placeholder="Select lead auditor" />
             </Field>
             <Field label="Audit date">
               <input type="date" value={vda63AuditInfo.date} onChange={(event) => updateAuditInfo('date', event.target.value)} />

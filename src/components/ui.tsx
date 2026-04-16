@@ -1,9 +1,9 @@
-import { useEffect } from 'react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { SHOW_HELPER_TEXT } from '../config/uiPreferences'
 import { getAuditToneStyle, getAuditTypeFamilyLabel, getAuditTypeLabel } from '../data/auditTypes'
 import type { AuditType } from '../types/audit'
 import { getStatusDisplayLabel } from '../utils/statusDisplay'
+import { useModalKeyboard } from '../utils/useModalKeyboard'
 import { ButtonLabel } from './icons'
 
 type PanelProps = {
@@ -253,6 +253,7 @@ export function Modal({
   children,
   actions,
   onClose,
+  onPrimaryAction,
   size = 'medium',
 }: {
   title: string
@@ -260,18 +261,10 @@ export function Modal({
   children: React.ReactNode
   actions?: React.ReactNode
   onClose: () => void
+  onPrimaryAction?: (() => void) | null
   size?: 'medium' | 'large'
 }) {
-  useEffect(() => {
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape') {
-        onClose()
-      }
-    }
-
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [onClose])
+  useModalKeyboard({ onClose, onConfirm: onPrimaryAction ?? null })
 
   return (
     <div

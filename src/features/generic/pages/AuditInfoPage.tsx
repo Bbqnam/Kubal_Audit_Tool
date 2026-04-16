@@ -4,7 +4,6 @@ import AuditTeamEditor from '../../../components/AuditTeamEditor'
 import { ButtonLabel } from '../../../components/icons'
 import ExportCenter from '../../../components/ExportCenter'
 import MetadataSection from '../../../components/MetadataSection'
-import WorkspaceUserSelect from '../../../components/WorkspaceUserSelect'
 import { DetailList, Field, MetricCard, PageHeader, Panel } from '../../../components/ui'
 import { getAuditTitleLabel, getAuditTypeFamilyLabel, getAuditTypeLabel, getAuditWorkspaceKind } from '../../../data/auditTypes'
 import { getAuditRecordHomePath, getAuditSectionPath, getPlanningCalendarPath } from '../../../data/navigation'
@@ -126,17 +125,11 @@ export default function GenericAuditInfoPage() {
                 ))}
               </select>
             </Field>
-            <Field label="Workflow mode">
-              <input value={workflowLabel} readOnly />
-            </Field>
             <Field label="Audit title">
               <input value={audit.title} onChange={(event) => updateAuditTitle(event.target.value)} />
             </Field>
             <Field label="Site">
               <input value={genericAuditInfo.site} onChange={(event) => updateAuditInfo('site', event.target.value)} />
-            </Field>
-            <Field label="Lead auditor">
-              <WorkspaceUserSelect users={users} value={genericAuditInfo.auditor} onChange={(value) => updateAuditInfo('auditor', value)} placeholder="Select lead auditor" />
             </Field>
             <Field label="Audit date">
               <input type="date" value={genericAuditInfo.date} onChange={(event) => updateAuditInfo('date', event.target.value)} />

@@ -1,10 +1,50 @@
-import { useState } from 'react'
-import type { ActionPlanItem, ActionPlanUpdatePatch } from '../types/audit'
+import { useState, type ChangeEvent } from 'react'
+import type { ActionPlanEvidenceFile, ActionPlanItem, ActionPlanUpdatePatch } from '../types/audit'
 import { formatDate, formatDateTime } from '../utils/dateUtils'
 import { ButtonLabel } from './icons'
 import { AuditTypeBadge, StatusBadge } from './ui'
 import type { KubalProcessAreaGroup } from '../features/generic/data/nonconformityTemplate'
 import { isActionItemDelayed } from '../features/shared/services/auditWorkflow'
+
+const MAX_EVIDENCE_FILE_SIZE = 600 * 1024
+
+function createEvidenceFileId() {
+  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
+    return crypto.randomUUID()
+  }
+
+  return `evidence-${Math.random().toString(36).slice(2, 10)}`
+}
+
+function readFileAsDataUrl(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader()
+
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        resolve(reader.result)
+        return
+      }
+
+      reject(new Error(`Could not read ${file.name}.`))
+    }
+
+    reader.onerror = () => reject(new Error(`Could not read ${file.name}.`))
+    reader.readAsDataURL(file)
+  })
+}
+
+function formatFileSize(size: number) {
+  if (size >= 1024 * 1024) {
+    return `${(size / (1024 * 1024)).toFixed(1)} MB`
+  }
+
+  if (size >= 1024) {
+    return `${Math.round(size / 1024)} KB`
+  }
+
+  return `${size} B`
+}
 
 function renderText(value: string, fallback = 'None yet') {
   return value.trim() ? value : <span className="table-subtle-cell">{fallback}</span>
@@ -23,11 +63,57 @@ function getActionValidationMessage(item: ActionPlanItem) {
     return 'Document the action or finding before saving this action.'
   }
 
-  if (item.status === 'Closed' && !item.closureEvidence.trim()) {
-    return 'Add closure evidence before closing this action.'
+  if (item.status === 'Closed' && !item.closureEvidence.trim() && !item.closureEvidenceFiles.length) {
+    return 'Add closure evidence or a closure file before closing this action.'
   }
 
   return null
+}
+
+function getEvidenceSummary(item: ActionPlanItem) {
+  const text = item.closureEvidence.trim()
+  const fileNames = item.closureEvidenceFiles.map((file) => file.name).join(', ')
+
+  if (text && fileNames) {
+    return `${text} Files: ${fileNames}`
+  }
+
+  if (text) {
+    return text
+  }
+
+  if (fileNames) {
+    return `Files: ${fileNames}`
+  }
+
+  return 'No closure evidence yet.'
+}
+
+function renderEvidenceFiles(
+  files: ActionPlanEvidenceFile[],
+  onRemove?: (fileId: string) => void,
+) {
+  if (!files.length) {
+    return <p className="action-plan-file-empty">No files uploaded.</p>
+  }
+
+  return (
+    <div className="action-plan-file-list">
+      {files.map((file) => (
+        <div key={file.id} className="action-plan-file-chip">
+          <a href={file.dataUrl} download={file.name}>
+            {file.name}
+          </a>
+          <span>{formatFileSize(file.size)}</span>
+          {onRemove ? (
+            <button type="button" className="button button-secondary button-small" onClick={() => onRemove(file.id)}>
+              Remove
+            </button>
+          ) : null}
+        </div>
+      ))}
+    </div>
+  )
 }
 
 export default function ActionPlanTable({
@@ -52,6 +138,7 @@ export default function ActionPlanTable({
   const showNcMetadata = processAreaGroups.length > 0 || clauseOptions.length > 0 || nonconformityTypeOptions.length > 0
   const [expandedIds, setExpandedIds] = useState<string[]>(() => items.slice(0, 1).map((item) => item.id))
   const [validationMessages, setValidationMessages] = useState<Record<string, string>>({})
+  const [attachmentMessages, setAttachmentMessages] = useState<Record<string, string>>({})
 
   const toggleExpanded = (id: string) => {
     setExpandedIds((current) => (current.includes(id) ? current.filter((itemId) => itemId !== id) : [...current, id]))
@@ -76,12 +163,73 @@ export default function ActionPlanTable({
     onSave?.(item.id)
   }
 
+  const handleEvidenceFilesChange = async (item: ActionPlanItem, event: ChangeEvent<HTMLInputElement>) => {
+    if (!onUpdate) {
+      return
+    }
+
+    const selectedFiles = Array.from(event.target.files ?? [])
+    event.target.value = ''
+
+    if (!selectedFiles.length) {
+      return
+    }
+
+    const oversizedFile = selectedFiles.find((file) => file.size > MAX_EVIDENCE_FILE_SIZE)
+
+    if (oversizedFile) {
+      setAttachmentMessages((current) => ({
+        ...current,
+        [item.id]: `${oversizedFile.name} is too large. Keep each closure evidence file under ${formatFileSize(MAX_EVIDENCE_FILE_SIZE)}.`,
+      }))
+      return
+    }
+
+    try {
+      const uploadedFiles = await Promise.all(selectedFiles.map(async (file) => ({
+        id: createEvidenceFileId(),
+        name: file.name,
+        type: file.type || 'application/octet-stream',
+        size: file.size,
+        uploadedAt: new Date().toISOString(),
+        dataUrl: await readFileAsDataUrl(file),
+      })))
+
+      onUpdate(item.id, {
+        closureEvidenceFiles: [...item.closureEvidenceFiles, ...uploadedFiles],
+      })
+      setAttachmentMessages((current) => {
+        const nextMessages = { ...current }
+        delete nextMessages[item.id]
+        return nextMessages
+      })
+    } catch (error) {
+      setAttachmentMessages((current) => ({
+        ...current,
+        [item.id]: error instanceof Error ? error.message : 'Closure evidence files could not be added.',
+      }))
+    }
+  }
+
+  const removeEvidenceFile = (item: ActionPlanItem, fileId: string) => {
+    onUpdate?.(item.id, {
+      closureEvidenceFiles: item.closureEvidenceFiles.filter((file) => file.id !== fileId),
+    })
+  }
+
   return (
     <div className="action-plan-workspace">
       {items.map((item, index) => {
         const isExpanded = expandedIds.includes(item.id)
         const isLinkedToReport = Boolean(item.reportItemId)
         const validationMessage = validationMessages[item.id]
+        const attachmentMessage = attachmentMessages[item.id]
+        const summaryItems = [
+          { label: 'Action', value: item.action || item.correctiveAction || 'No action summary yet.' },
+          { label: 'Containment', value: item.containmentAction || 'No containment action yet.' },
+          { label: 'Root cause', value: item.rootCauseAnalysis || 'No root cause yet.' },
+          { label: 'Closure evidence', value: getEvidenceSummary(item) },
+        ]
 
         return (
           <article key={item.id} className={`action-plan-card${!onUpdate && isActionItemDelayed(item) ? ' table-row-attention' : ''}`}>
@@ -93,7 +241,7 @@ export default function ActionPlanTable({
                   {isLinkedToReport ? <span className="dashboard-widget-kicker">Linked NC</span> : null}
                 </div>
                 <div className="action-plan-card-title-row">
-                  <strong>{item.section || item.processArea || 'Action item'}</strong>
+                  <strong>{item.section || item.processArea || item.clause || 'Action item'}</strong>
                   {onSave ? (
                     <button
                       type="button"
@@ -112,7 +260,7 @@ export default function ActionPlanTable({
                   <span><strong>Due</strong> {item.dueDate ? formatDate(item.dueDate) : 'No date'}</span>
                   {auditDate ? <span><strong>Audit date</strong> {formatDate(auditDate)}</span> : null}
                   {showNcMetadata ? <span><strong>Type</strong> {item.nonconformityType || 'Not set'}</span> : null}
-                  {showNcMetadata ? <span><strong>Process</strong> {[item.processArea, item.clause].filter(Boolean).join(' / ') || 'Not set'}</span> : null}
+                  {showNcMetadata ? <span><strong>Reference</strong> {[item.processArea, item.clause].filter(Boolean).join(' / ') || 'Not set'}</span> : null}
                   <div className="action-plan-meta-actions">
                     {onUpdate ? (
                       <label className="action-plan-meta-select">
@@ -135,10 +283,12 @@ export default function ActionPlanTable({
             </div>
 
             <div className="action-plan-summary-row">
-              <div className="action-plan-summary-item">
-                <span className="action-plan-summary-label">Action</span>
-                <p>{item.action || item.correctiveAction || 'No action summary yet.'}</p>
-              </div>
+              {summaryItems.map((summaryItem) => (
+                <div key={summaryItem.label} className="action-plan-summary-item">
+                  <span className="action-plan-summary-label">{summaryItem.label}</span>
+                  <p>{summaryItem.value}</p>
+                </div>
+              ))}
             </div>
 
             {isExpanded ? (
@@ -221,7 +371,16 @@ export default function ActionPlanTable({
                     </label>
                   ) : null}
 
-                  <label className="field">
+                  <label className="field field-full">
+                    <span>Action summary</span>
+                    {onUpdate ? (
+                      <textarea value={item.action} onChange={(event) => onUpdate(item.id, { action: event.target.value })} rows={3} placeholder="Short summary of the action plan item." />
+                    ) : (
+                      <div className="action-plan-readonly">{renderText(item.action)}</div>
+                    )}
+                  </label>
+
+                  <label className="field field-full">
                     <span>Finding</span>
                     {onUpdate && !isLinkedToReport ? (
                       <textarea value={item.finding} onChange={(event) => onUpdate(item.id, { finding: event.target.value })} rows={3} placeholder="Finding statement." />
@@ -231,9 +390,9 @@ export default function ActionPlanTable({
                   </label>
 
                   <label className="field">
-                    <span>Containment actions</span>
+                    <span>Containment action</span>
                     {onUpdate ? (
-                      <textarea value={item.containmentAction} onChange={(event) => onUpdate(item.id, { containmentAction: event.target.value })} rows={3} placeholder="Containment action." />
+                      <textarea value={item.containmentAction} onChange={(event) => onUpdate(item.id, { containmentAction: event.target.value })} rows={4} placeholder="Immediate containment action." />
                     ) : (
                       <div className="action-plan-readonly">{renderText(item.containmentAction)}</div>
                     )}
@@ -242,7 +401,7 @@ export default function ActionPlanTable({
                   <label className="field">
                     <span>Root cause analysis</span>
                     {onUpdate ? (
-                      <textarea value={item.rootCauseAnalysis} onChange={(event) => onUpdate(item.id, { rootCauseAnalysis: event.target.value })} rows={3} placeholder="Root cause." />
+                      <textarea value={item.rootCauseAnalysis} onChange={(event) => onUpdate(item.id, { rootCauseAnalysis: event.target.value })} rows={4} placeholder="Root cause." />
                     ) : (
                       <div className="action-plan-readonly">{renderText(item.rootCauseAnalysis)}</div>
                     )}
@@ -251,7 +410,7 @@ export default function ActionPlanTable({
                   <label className="field">
                     <span>Corrective action</span>
                     {onUpdate ? (
-                      <textarea value={item.correctiveAction} onChange={(event) => onUpdate(item.id, { correctiveAction: event.target.value })} rows={3} placeholder="Permanent corrective action." />
+                      <textarea value={item.correctiveAction} onChange={(event) => onUpdate(item.id, { correctiveAction: event.target.value })} rows={4} placeholder="Permanent corrective action." />
                     ) : (
                       <div className="action-plan-readonly">{renderText(item.correctiveAction)}</div>
                     )}
@@ -260,7 +419,7 @@ export default function ActionPlanTable({
                   <label className="field">
                     <span>Preventive action</span>
                     {onUpdate ? (
-                      <textarea value={item.preventiveAction} onChange={(event) => onUpdate(item.id, { preventiveAction: event.target.value })} rows={3} placeholder="Prevent recurrence elsewhere." />
+                      <textarea value={item.preventiveAction} onChange={(event) => onUpdate(item.id, { preventiveAction: event.target.value })} rows={4} placeholder="Prevent recurrence elsewhere." />
                     ) : (
                       <div className="action-plan-readonly">{renderText(item.preventiveAction)}</div>
                     )}
@@ -269,29 +428,43 @@ export default function ActionPlanTable({
                   <label className="field">
                     <span>Effectiveness check</span>
                     {onUpdate ? (
-                      <textarea value={item.verificationOfEffectiveness} onChange={(event) => onUpdate(item.id, { verificationOfEffectiveness: event.target.value })} rows={3} placeholder="How will effectiveness be verified?" />
+                      <textarea value={item.verificationOfEffectiveness} onChange={(event) => onUpdate(item.id, { verificationOfEffectiveness: event.target.value })} rows={4} placeholder="How will effectiveness be verified?" />
                     ) : (
                       <div className="action-plan-readonly">{renderText(item.verificationOfEffectiveness)}</div>
                     )}
                   </label>
 
                   <label className="field">
-                    <span>Closure evidence</span>
-                    {onUpdate ? (
-                      <textarea value={item.closureEvidence} onChange={(event) => onUpdate(item.id, { closureEvidence: event.target.value })} rows={3} placeholder="Evidence for closure." />
-                    ) : (
-                      <div className="action-plan-readonly">{renderText(item.closureEvidence)}</div>
-                    )}
-                  </label>
-
-                  <label className="field">
                     <span>Notes</span>
                     {onUpdate ? (
-                      <textarea value={item.comment} onChange={(event) => onUpdate(item.id, { comment: event.target.value })} rows={3} placeholder="Notes or follow-up." />
+                      <textarea value={item.comment} onChange={(event) => onUpdate(item.id, { comment: event.target.value })} rows={4} placeholder="Notes or follow-up." />
                     ) : (
                       <div className="action-plan-readonly">{renderText(item.comment)}</div>
                     )}
                   </label>
+
+                  <div className="field field-full">
+                    <span>Closure evidence</span>
+                    {onUpdate ? (
+                      <>
+                        <textarea value={item.closureEvidence} onChange={(event) => onUpdate(item.id, { closureEvidence: event.target.value })} rows={4} placeholder="Text evidence for closure." />
+                        <div className="action-plan-file-upload-row">
+                          <label className="button button-secondary button-small action-plan-file-upload-button">
+                            <input type="file" multiple onChange={(event) => void handleEvidenceFilesChange(item, event)} />
+                            <ButtonLabel icon="open" label="Add files" />
+                          </label>
+                          <span className="action-plan-file-upload-note">Stored locally in the browser. Keep each file under {formatFileSize(MAX_EVIDENCE_FILE_SIZE)}.</span>
+                        </div>
+                        {attachmentMessage ? <p className="export-feedback">{attachmentMessage}</p> : null}
+                        {renderEvidenceFiles(item.closureEvidenceFiles, (fileId) => removeEvidenceFile(item, fileId))}
+                      </>
+                    ) : (
+                      <div className="action-plan-readonly action-plan-evidence-readonly">
+                        <div>{renderText(item.closureEvidence)}</div>
+                        {renderEvidenceFiles(item.closureEvidenceFiles)}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             ) : null}

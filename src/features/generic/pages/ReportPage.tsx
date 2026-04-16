@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import type { GenericAuditRecord } from '../../../types/audit'
 import ExportCenter from '../../../components/ExportCenter'
 import { ButtonLabel } from '../../../components/icons'
 import { DetailList, EmptyState, MetricCard, PageHeader, Panel } from '../../../components/ui'
@@ -17,6 +18,8 @@ import {
 import { getAuditTypeLabel } from '../../../data/auditTypes'
 import { useGenericAuditWorkspace } from '../../shared/context/useGenericAuditWorkspace'
 import { formatDateTime } from '../../../utils/dateUtils'
+import { buildGenericAuditShortSummary } from '../../shared/services/auditSummary'
+import { useModalKeyboard } from '../../../utils/useModalKeyboard'
 
 function ClausePickerModal({
   standard,
@@ -41,6 +44,7 @@ function ClausePickerModal({
   const toggleCode = (code: string) => {
     setExpandedCodes((current) => (current.includes(code) ? current.filter((item) => item !== code) : [...current, code]))
   }
+  useModalKeyboard({ onClose })
 
   const renderNode = (node: ReturnType<typeof buildClauseTree>[number], depth = 0) => {
     const hasChildren = node.children.length > 0
@@ -141,14 +145,16 @@ export default function GenericAuditReportPage() {
   const observationCount = reportItems.filter((item) => item.nonconformityType === 'Observation' || item.nonconformityType === 'Improvement suggestion').length
   const [activeClauseItemId, setActiveClauseItemId] = useState<string | null>(null)
   const activeClauseItem = reportItems.find((item) => item.id === activeClauseItemId) ?? null
+  const suggestedReportSummary = useMemo(() => buildGenericAuditShortSummary(audit as GenericAuditRecord), [audit])
+  const reportHeaderLabel = audit.standard.trim() || getAuditTypeLabel(audit.auditType)
 
   return (
     <div className="module-page">
       <PageHeader
-        eyebrow={getAuditTypeLabel(audit.auditType)}
+        eyebrow={reportHeaderLabel}
         eyebrowTone={audit.auditType}
         title="Audit report"
-        subtitle="Capture nonconformities, observations, clause references, and process-area traceability for the shared audit template."
+        subtitle={`Audit ID ${audit.auditId}. Capture nonconformities, observations, clause references, and process-area traceability for this audit report.`}
         actions={
           <button type="button" className="button button-primary" onClick={addReportItem}>
             <ButtonLabel icon="add" label="Add NC" />
@@ -167,8 +173,9 @@ export default function GenericAuditReportPage() {
         <Panel title="Report header" description="Core identification details carried into the audit report.">
           <DetailList
             items={[
+              { label: 'Audit ID', value: audit.auditId },
               { label: 'Audit title', value: audit.title || 'Untitled audit' },
-              { label: 'Standard', value: audit.standard || 'Select a standard in Audit Info' },
+              { label: 'Audit type', value: reportHeaderLabel },
               { label: 'Site', value: genericAuditInfo.site || 'Not set' },
               { label: 'Auditor', value: genericAuditInfo.auditor || 'Not set' },
               { label: 'Audit date', value: genericAuditInfo.date || 'Not set' },
@@ -197,13 +204,14 @@ export default function GenericAuditReportPage() {
         </Panel>
       </div>
 
-      <Panel title="Audit summary" description="Narrative summary, overall conclusion, or introduction text for the report body.">
+      <Panel title="Audit summary" description="Short summary of the full report. If you leave it blank, exports use the suggested summary below.">
         <textarea
           rows={5}
           value={reportSummary}
           onChange={(event) => updateReportSummary(event.target.value)}
           placeholder="Summarize scope, audit approach, overall conclusion, and key themes."
         />
+        {!reportSummary.trim() ? <p className="panel-copy">Suggested summary: {suggestedReportSummary}</p> : null}
       </Panel>
 
       <Panel

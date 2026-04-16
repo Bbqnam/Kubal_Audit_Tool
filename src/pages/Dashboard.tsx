@@ -18,7 +18,6 @@ import { getAuditWorkspaceKind } from '../data/auditTypes'
 import { useAuditLibrary } from '../features/shared/context/useAuditLibrary'
 import {
   getDerivedPlanStatus,
-  getPlanWindowLabel,
   getPlanningYears,
   getPlansForYear,
   getUpcomingPlanningRecords,
@@ -846,18 +845,15 @@ export default function Dashboard() {
                     <div className="dashboard-timeline-title">
                       <strong>{record.title}</strong>
                     </div>
-                    <p>{record.owner} · {record.site}</p>
                     <div className="dashboard-timeline-meta">
+                      <span className={`dashboard-standard-chip dashboard-standard-${getStandardToneKey(record.standard)}`}>{record.standard}</span>
                       <time className={`dashboard-timeline-date dashboard-timeline-date-${planStatusKey}`} dateTime={record.plannedStart}>
                         {formatDate(record.plannedStart)}
                       </time>
-                      <span>{getPlanWindowLabel(record)}</span>
-                      <span className={`dashboard-standard-chip dashboard-standard-${getStandardToneKey(record.standard)}`}>{record.standard}</span>
                     </div>
                     <div className="dashboard-timeline-trace">
                       <span>{record.auditId}</span>
-                      <span>{record.updatedBy}</span>
-                      <span>{formatDate(record.updatedAt)}</span>
+                      <span>{record.owner || 'Auditor TBD'}</span>
                     </div>
                   </div>
                 </Link>

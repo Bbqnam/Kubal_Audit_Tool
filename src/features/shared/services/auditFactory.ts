@@ -8,6 +8,7 @@ import { createAuditHistoryEntry, createAuditReferenceId, DEFAULT_AUDIT_ACTOR } 
 import { normalizeAuditParticipants } from '../../../utils/userDirectory'
 import type {
   ActionPlanItem,
+  ActionPlanEvidenceFile,
   AuditInfo,
   AuditHistoryEntry,
   AuditRecord,
@@ -116,6 +117,19 @@ function createBlankGenericReportItem(base?: Partial<GenericAuditReportItem>): G
   }
 }
 
+function normalizeActionPlanEvidenceFiles(files: ActionPlanEvidenceFile[] | undefined) {
+  return (files ?? [])
+    .filter((file) => Boolean(file) && typeof file.name === 'string' && typeof file.dataUrl === 'string')
+    .map((file) => ({
+      id: file.id ?? createId('evidence'),
+      name: file.name,
+      type: file.type ?? 'application/octet-stream',
+      size: Number(file.size ?? 0),
+      uploadedAt: file.uploadedAt ?? createTimestamp(),
+      dataUrl: file.dataUrl,
+    }))
+}
+
 function createBlankActionPlanItem(auditType: AuditType, base?: Partial<ActionPlanItem>): ActionPlanItem {
   const clonedBase = clone(base ?? {})
 
@@ -134,6 +148,7 @@ function createBlankActionPlanItem(auditType: AuditType, base?: Partial<ActionPl
     preventiveAction: clonedBase.preventiveAction ?? '',
     verificationOfEffectiveness: clonedBase.verificationOfEffectiveness ?? '',
     closureEvidence: clonedBase.closureEvidence ?? '',
+    closureEvidenceFiles: normalizeActionPlanEvidenceFiles(clonedBase.closureEvidenceFiles),
     owner: '',
     dueDate: '',
     status: 'Open',

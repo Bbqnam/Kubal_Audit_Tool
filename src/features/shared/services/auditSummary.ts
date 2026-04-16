@@ -2,6 +2,7 @@ import type {
   AuditRecord,
   AuditSummaryPreview,
   AuditType,
+  GenericAuditRecord,
   Vda65ChecklistItem,
 } from '../../../types/audit'
 import { getAuditTitleLabel } from '../../../data/auditTypes'
@@ -59,6 +60,36 @@ function buildGenericPreview(record: Exclude<AuditRecord, { auditType: 'vda63' |
     scorePreview: record.standard || undefined,
     resultPreview: status,
   }
+}
+
+export function buildGenericAuditShortSummary(record: GenericAuditRecord) {
+  const manualSummary = record.data.reportSummary.trim()
+
+  if (manualSummary) {
+    return manualSummary
+  }
+
+  const majorCount = record.data.reportItems.filter((item) => item.nonconformityType === 'Major nonconformity').length
+  const minorCount = record.data.reportItems.filter((item) => item.nonconformityType === 'Minor nonconformity').length
+  const observationCount = record.data.reportItems.filter(
+    (item) => item.nonconformityType === 'Observation' || item.nonconformityType === 'Improvement suggestion',
+  ).length
+  const openActions = record.actions.filter((item) => item.status !== 'Closed').length
+  const topicHighlights = record.data.reportItems
+    .map((item) => item.title.trim() || item.processArea.trim() || item.clause.trim())
+    .filter(Boolean)
+    .slice(0, 2)
+
+  const overviewParts = [
+    record.data.auditInfo.scope.trim() || `Audit performed against ${record.standard || 'the selected standard'}.`,
+    `${record.data.reportItems.length} report item${record.data.reportItems.length === 1 ? '' : 's'} recorded`,
+    `${majorCount} major, ${minorCount} minor, ${observationCount} observation${observationCount === 1 ? '' : 's'}`,
+  ]
+
+  const followUpPart = `${openActions} action item${openActions === 1 ? '' : 's'} still open`
+  const highlightPart = topicHighlights.length ? `Key themes: ${topicHighlights.join('; ')}.` : ''
+
+  return `${overviewParts.join(', ')}. ${followUpPart}.${highlightPart ? ` ${highlightPart}` : ''}`.trim()
 }
 
 export function summarizeAuditRecord(record: AuditRecord): AuditSummaryPreview {

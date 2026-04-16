@@ -11,6 +11,7 @@ export default function PlanningHistoryModal({ record, onClose }: { record: Audi
       title="Planning change history"
       description="Trace scheduling, completion, cancellation, and linkage updates for this planned audit."
       onClose={onClose}
+      onPrimaryAction={onClose}
       actions={
         <button type="button" className="button button-primary" onClick={onClose}>
           <ButtonLabel icon="close" label="Close" />

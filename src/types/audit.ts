@@ -46,6 +46,15 @@ export type Vda65AuditDecision = 'Not started' | 'In progress' | 'OK' | 'Audit F
 export type ActionPlanStatus = 'Open' | 'In progress' | 'Closed'
 export type NonconformityType = 'Major nonconformity' | 'Minor nonconformity' | 'Observation' | 'Improvement suggestion'
 
+export type ActionPlanEvidenceFile = {
+  id: string
+  name: string
+  type: string
+  size: number
+  uploadedAt: string
+  dataUrl: string
+}
+
 export type AuditLifecycleStatus = 'Not started' | 'In progress' | 'Completed'
 
 export type AuditHistoryActionType =
@@ -140,6 +149,7 @@ export type ActionPlanItem = {
   preventiveAction: string
   verificationOfEffectiveness: string
   closureEvidence: string
+  closureEvidenceFiles: ActionPlanEvidenceFile[]
   owner: string
   dueDate: string
   status: ActionPlanStatus
@@ -160,6 +170,7 @@ export type ActionPlanUpdatePatch = Partial<Pick<
   | 'preventiveAction'
   | 'verificationOfEffectiveness'
   | 'closureEvidence'
+  | 'closureEvidenceFiles'
   | 'owner'
   | 'dueDate'
   | 'status'

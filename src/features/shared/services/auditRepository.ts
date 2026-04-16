@@ -6,7 +6,7 @@ import { createSeedPlanningChecklist, createSeedPlanningRecords } from '../../pl
 import { normalizePlanningActivityEntry, normalizePlanningRecordShape } from '../../planning/services/planningFactory'
 import { mergePlanningYears } from '../../planning/services/planningUtils'
 import { createAuditReferenceId } from '../../../utils/traceability'
-import type { WorkspaceUser } from '../../../types/access'
+import type { WorkspaceUser, WorkspaceUserHistoryEntry } from '../../../types/access'
 import { mergeWorkspaceUsers } from '../../../utils/userDirectory'
 
 export type AuditRepository = {
@@ -17,6 +17,7 @@ export type AuditRepository = {
 export type WorkspaceSnapshot = {
   audits: AuditRecord[]
   auditLibraryHistory: AuditHistoryEntry[]
+  userAdminHistory: WorkspaceUserHistoryEntry[]
   users: WorkspaceUser[]
   planningRecords: AuditPlanRecord[]
   planningActivityLog: PlanningActivityLogEntry[]
@@ -36,6 +37,7 @@ function createSeedWorkspace(): WorkspaceSnapshot {
   return {
     audits,
     auditLibraryHistory: [],
+    userAdminHistory: [],
     users: mergeWorkspaceUsers([]),
     planningRecords,
     planningActivityLog: [],
@@ -163,6 +165,9 @@ export function createLocalStorageAuditRepository(): AuditRepository {
               auditLibraryHistory: Array.isArray((parsed as WorkspaceSnapshot).auditLibraryHistory)
                 ? normalizeAuditLibraryHistory((parsed as WorkspaceSnapshot).auditLibraryHistory)
                 : seedWorkspace.auditLibraryHistory,
+              userAdminHistory: Array.isArray((parsed as WorkspaceSnapshot).userAdminHistory)
+                ? (parsed as WorkspaceSnapshot).userAdminHistory
+                : seedWorkspace.userAdminHistory,
               users: Array.isArray((parsed as WorkspaceSnapshot).users) ? (parsed as WorkspaceSnapshot).users : seedWorkspace.users,
               planningRecords: Array.isArray(parsed.planningRecords)
                 ? parsed.planningRecords.map((record) => normalizePlanningRecordShape(record))
@@ -197,6 +202,7 @@ export function createLocalStorageAuditRepository(): AuditRepository {
         const workspace = {
           ...rawWorkspace,
           audits,
+          userAdminHistory: rawWorkspace.userAdminHistory,
           users: mergeWorkspaceUsers(rawWorkspace.users ?? seedWorkspace.users),
           planningRecords,
           planningActivityLog: rawWorkspace.planningActivityLog.map((entry) => normalizePlanningActivityEntry(entry)),

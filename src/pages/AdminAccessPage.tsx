@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import HistoryModal from '../components/HistoryModal'
 import { ButtonLabel } from '../components/icons'
 import { EmptyState, PageHeader, Panel } from '../components/ui'
 import { workspaceUserPermissionOptions } from '../data/access'
@@ -28,12 +29,26 @@ function createUsageMap(audits: ReturnType<typeof useAuditLibrary>['audits']) {
 }
 
 export default function AdminAccessPage() {
-  const { audits, users, createUser, updateUser, deleteUser } = useAuditLibrary()
+  const { audits, userAdminHistory, users, createUser, updateUser, deleteUser } = useAuditLibrary()
   const [message, setMessage] = useState<string | null>(null)
   const [newUserName, setNewUserName] = useState('')
   const [searchValue, setSearchValue] = useState('')
+  const [historyOpen, setHistoryOpen] = useState(false)
   const usageByName = useMemo(() => createUsageMap(audits), [audits])
   const filteredUsers = users.filter((user) => user.name.toLowerCase().includes(searchValue.trim().toLowerCase()))
+  const userHistoryItems = useMemo(
+    () => [...userAdminHistory]
+      .sort((left, right) => right.timestamp.localeCompare(left.timestamp))
+      .map((entry) => ({
+        id: entry.id,
+        timestamp: entry.timestamp,
+        badge: entry.action,
+        title: entry.userName || entry.summary,
+        description: entry.summary,
+        meta: `${entry.actorName} · ${entry.actorPosition}`,
+      })),
+    [userAdminHistory],
+  )
 
   function handleCreateUser() {
     const sanitizedName = sanitizeUserName(newUserName)
@@ -48,12 +63,10 @@ export default function AdminAccessPage() {
       return
     }
 
-    const createdUser = createUser()
-    updateUser(createdUser.id, () => ({
-      ...createdUser,
+    createUser({
       name: sanitizedName,
       position: '',
-    }))
+    })
     setNewUserName('')
     setMessage(null)
   }
@@ -66,7 +79,15 @@ export default function AdminAccessPage() {
         subtitle="Keep this list small and practical. Names here appear in auditor and audit-team selection."
       />
 
-      <Panel title="Directory" description="Name is only needed when creating a user. After that, keep each row lightweight.">
+      <Panel
+        title="Directory"
+        description="Name is only needed when creating a user. After that, keep each row lightweight."
+        actions={
+          <button type="button" className="button button-secondary button-small" onClick={() => setHistoryOpen(true)}>
+            <ButtonLabel icon="history" label="History" />
+          </button>
+        }
+      >
         {message ? <p className="export-feedback">{message}</p> : null}
         <div className="access-toolbar access-toolbar-minimal">
           <input
@@ -131,6 +152,17 @@ export default function AdminAccessPage() {
           <EmptyState title="No matching users" description="Try a different search or add a user." />
         )}
       </Panel>
+
+      {historyOpen ? (
+        <HistoryModal
+          title="User admin history"
+          description="Tracks user creation, edits, permission changes, and deletions."
+          items={userHistoryItems}
+          emptyTitle="No user admin activity yet."
+          emptyDescription="Adding users, renaming them, or changing roles will appear here."
+          onClose={() => setHistoryOpen(false)}
+        />
+      ) : null}
     </div>
   )
 }

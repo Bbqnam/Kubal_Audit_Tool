@@ -47,6 +47,7 @@ function createBlankActionItem(auditType: ActionPlanItem['auditType']): ActionPl
     preventiveAction: '',
     verificationOfEffectiveness: '',
     closureEvidence: '',
+    closureEvidenceFiles: [],
     owner: '',
     dueDate: '',
     status: 'Open',

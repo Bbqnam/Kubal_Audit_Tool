@@ -6,7 +6,6 @@ import {
   getDerivedPlanStatus,
   getPlanColorClass,
   getPlanExecutionAuditType,
-  getPlanWindowLabel,
   getStatusAccentClass,
   planningWeekdayLabels,
 } from '../services/planningUtils'
@@ -73,7 +72,7 @@ export default function PlanningMonthCalendar({
                     const status = getDerivedPlanStatus(record)
                     const canOpenReport = !!onOpenReport && (Boolean(record.linkedAuditId) || Boolean(getPlanExecutionAuditType(record)))
                     const canComplete = status !== 'Completed' && status !== 'Cancelled' && !!onCompleteRecord
-                    const recordMeta = [record.owner, getPlanWindowLabel(record)].filter(Boolean).join(' • ')
+                    const recordMeta = [record.owner].filter(Boolean).join(' • ')
 
                     return (
                       <div
@@ -94,7 +93,10 @@ export default function PlanningMonthCalendar({
                         }}
                       >
                         <div className="planning-calendar-event-header">
-                          <strong>{record.title}</strong>
+                          <div className="planning-calendar-event-title-block">
+                            <span className="planning-calendar-event-kicker">{record.standard}</span>
+                            <strong>{record.title}</strong>
+                          </div>
                           <StatusBadge value={status} />
                         </div>
                         <div className="planning-calendar-event-footer">
@@ -105,6 +107,8 @@ export default function PlanningMonthCalendar({
                                 <button
                                   type="button"
                                   className="planning-calendar-event-action"
+                                  aria-label={record.linkedAuditId ? `Open linked audit report for ${record.title}` : `Create audit report for ${record.title}`}
+                                  title={record.linkedAuditId ? 'Open linked audit report' : 'Create audit report'}
                                   onClick={(event) => {
                                     event.stopPropagation()
                                     onOpenReport(record.id)
@@ -116,6 +120,8 @@ export default function PlanningMonthCalendar({
                               <button
                                 type="button"
                                 className="planning-calendar-event-complete"
+                                aria-label={`Mark ${record.title} as completed`}
+                                title="Mark completed"
                                 onClick={(event) => {
                                   event.stopPropagation()
                                   onCompleteRecord(record.id)
@@ -129,6 +135,8 @@ export default function PlanningMonthCalendar({
                               <button
                                 type="button"
                                 className="planning-calendar-event-action"
+                                aria-label={record.linkedAuditId ? `Open linked audit report for ${record.title}` : `Create audit report for ${record.title}`}
+                                title={record.linkedAuditId ? 'Open linked audit report' : 'Create audit report'}
                                 onClick={(event) => {
                                   event.stopPropagation()
                                   onOpenReport(record.id)
