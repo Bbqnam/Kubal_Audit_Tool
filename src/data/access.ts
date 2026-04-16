@@ -10,7 +10,7 @@ export const seedWorkspaceUsers: WorkspaceUser[] = [
   {
     id: 'user-admin-nam-nguyen',
     name: 'Nam Nguyen',
-    position: 'Quality Manager',
+    position: 'Quality Specialist',
     permission: 'Admin',
   },
   {
