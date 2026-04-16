@@ -1,11 +1,22 @@
+/* Shell layout, navigation, shared table primitives */
 @import "./styles/app/layout-shell-and-tables.css";
+/* Shared cards, summaries, participant editor, reusable module sections */
 @import "./styles/app/shared-summary-and-participants.css";
+/* Audit worksheets, action plans, report preview views */
 @import "./styles/app/audit-sheets-and-preview.css";
+/* Dashboard KPI tiles and status segments */
 @import "./styles/app/dashboard-kpis-and-segments.css";
+/* Dashboard standards chips and report surfaces */
 @import "./styles/app/dashboard-standards-and-reports.css";
+/* Planning report pages and calendar grid */
 @import "./styles/app/planning-reports-and-calendar-grid.css";
+/* Planning calendar events, controls, slicers */
 @import "./styles/app/planning-calendar-events-and-slicers.css";
+/* Portfolio hover cards and clause hierarchy visuals */
 @import "./styles/app/portfolio-hover-and-clause-tree.css";
+/* Audit library lists and dashboard pulse section */
 @import "./styles/app/audit-library-and-dashboard-pulse.css";
+/* Cross-module responsive overrides */
 @import "./styles/app/responsive-layout.css";
+/* Metadata surfaces and activity log components */
 @import "./styles/app/metadata-and-activity.css";

@@ -5,6 +5,7 @@ import { ButtonLabel } from './icons'
 import { AuditTypeBadge, StatusBadge } from './ui'
 import type { KubalProcessAreaGroup } from '../features/generic/data/nonconformityTemplate'
 import { isActionItemDelayed } from '../features/shared/services/auditWorkflow'
+import { getActionPlanValidationMessage } from '../features/shared/services/actionPlanValidation'
 
 const MAX_EVIDENCE_FILE_SIZE = 600 * 1024
 
@@ -48,26 +49,6 @@ function formatFileSize(size: number) {
 
 function renderText(value: string, fallback = 'None yet') {
   return value.trim() ? value : <span className="table-subtle-cell">{fallback}</span>
-}
-
-function getActionValidationMessage(item: ActionPlanItem) {
-  if (!item.owner.trim()) {
-    return 'Assign an owner before saving this action.'
-  }
-
-  if (!item.dueDate) {
-    return 'Add a due date before saving this action.'
-  }
-
-  if (!(item.action || item.correctiveAction || item.finding).trim()) {
-    return 'Document the action or finding before saving this action.'
-  }
-
-  if (item.status === 'Closed' && !item.closureEvidence.trim() && !item.closureEvidenceFiles.length) {
-    return 'Add closure evidence or a closure file before closing this action.'
-  }
-
-  return null
 }
 
 function getEvidenceSummary(item: ActionPlanItem) {
@@ -145,7 +126,7 @@ export default function ActionPlanTable({
   }
 
   const handleSave = (item: ActionPlanItem) => {
-    const validationMessage = getActionValidationMessage(item)
+    const validationMessage = getActionPlanValidationMessage(item)
 
     if (validationMessage) {
       setValidationMessages((current) => ({ ...current, [item.id]: validationMessage }))

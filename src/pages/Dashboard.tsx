@@ -17,7 +17,6 @@ import { isActionItemDelayed, summarizeOpenActionItems } from '../features/share
 import { getAuditWorkspaceKind } from '../data/auditTypes'
 import { useAuditLibrary } from '../features/shared/context/useAuditLibrary'
 import {
-  getDerivedPlanStatus,
   getPlanningYears,
   getPlansForYear,
   getUpcomingPlanningRecords,
@@ -25,140 +24,28 @@ import {
   planningMonthLabels,
   summarizePlans,
 } from '../features/planning/services/planningUtils'
-import type { ActionPlanStatus, AuditRecord, AuditType } from '../types/audit'
-import type { AuditPlanRecord } from '../types/planning'
+import type { AuditRecord, AuditType } from '../types/audit'
 import { formatDate } from '../utils/dateUtils'
 import { getStatusDisplayLabel } from '../utils/statusDisplay'
+import {
+  formatTimeOnly,
+  getActionPlanPath,
+  getActionPreviewPriority,
+  getDashboardPlanStatus,
+  getMonthDensityLevel,
+  getPlanningLink,
+  getPortfolioHoverDate,
+  isPastPlanningMonth,
+  normalizeProgressPercent,
+} from './dashboard/dashboardUtils'
 
-type DashboardPlanStatus = 'Completed' | 'Planned' | 'Upcoming' | 'In progress' | 'Overdue'
 type DashboardTone = 'green' | 'blue' | 'yellow' | 'orange' | 'red' | 'grey'
 type ChartSegment = { label: string; value: number; color: string }
-
-function startOfDay(date: Date) {
-  const clone = new Date(date)
-  clone.setHours(0, 0, 0, 0)
-  return clone
-}
-
-function getDaysUntil(dateString: string, referenceDate = new Date()) {
-  const reference = startOfDay(referenceDate)
-  const target = startOfDay(new Date(dateString))
-  return Math.round((target.getTime() - reference.getTime()) / 86_400_000)
-}
-
-function getDashboardPlanStatus(record: AuditPlanRecord, referenceDate = new Date()): DashboardPlanStatus {
-  const derivedStatus = getDerivedPlanStatus(record, referenceDate)
-
-  if (derivedStatus === 'Completed' || derivedStatus === 'In progress' || derivedStatus === 'Overdue') {
-    return derivedStatus
-  }
-
-  return getDaysUntil(record.plannedStart, referenceDate) <= 30 ? 'Upcoming' : 'Planned'
-}
 
 function getAuditDashboardStatus(record: AuditRecord) {
   return record.status
 }
 
-function getActionPlanPath(record: AuditRecord) {
-  return `/audits/${record.id}/${record.auditType}/action-plan`
-}
-
-function getPlanningLink(record: AuditPlanRecord, audits: AuditRecord[]) {
-  if (record.linkedAuditId) {
-    const linkedAudit = audits.find((audit) => audit.id === record.linkedAuditId)
-
-    if (linkedAudit) {
-      return getAuditRecordHomePath(linkedAudit)
-    }
-  }
-
-  return getPlanningCalendarPath({
-    year: record.year,
-    month: record.month,
-  })
-}
-
-function getMonthDensityLevel(count: number, maxCount: number) {
-  if (count === 0) {
-    return 'zero'
-  }
-
-  const ratio = count / Math.max(1, maxCount)
-
-  if (ratio >= 0.8) {
-    return '4'
-  }
-
-  if (ratio >= 0.55) {
-    return '3'
-  }
-
-  if (ratio >= 0.3) {
-    return '2'
-  }
-
-  return '1'
-}
-
-function isPastPlanningMonth(year: number, month: number, referenceDate = new Date()) {
-  const referenceYear = referenceDate.getFullYear()
-  const referenceMonth = referenceDate.getMonth() + 1
-
-  if (year < referenceYear) {
-    return true
-  }
-
-  if (year > referenceYear) {
-    return false
-  }
-
-  return month < referenceMonth
-}
-
-function formatTimeOnly(value: string) {
-  return new Intl.DateTimeFormat('en-GB', {
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(new Date(value))
-}
-
-function getActionPreviewPriority(status: ActionPlanStatus) {
-  switch (status) {
-    case 'In progress':
-      return 0
-    case 'Open':
-      return 1
-    default:
-      return 2
-  }
-}
-
-function getPortfolioHoverDate(record: AuditPlanRecord, referenceDate = new Date()) {
-  const status = getDashboardPlanStatus(record, referenceDate)
-
-  if (status === 'Completed') {
-    return {
-      dateTime: record.actualCompletionDate ?? record.plannedEnd,
-      label: 'Completed',
-      value: formatDate(record.actualCompletionDate ?? record.plannedEnd),
-    }
-  }
-
-  if (status === 'Overdue') {
-    return {
-      dateTime: record.plannedEnd,
-      label: 'Delayed',
-      value: formatDate(record.plannedEnd),
-    }
-  }
-
-  return {
-    dateTime: record.plannedStart,
-    label: status === 'In progress' ? 'Started' : 'Starts',
-    value: formatDate(record.plannedStart),
-  }
-}
 
 function DashboardMetaPill({
   label,
@@ -261,9 +148,9 @@ export default function Dashboard() {
   const portfolioSummary = summarizePlans(portfolioFilteredPlans)
   const portfolioCompletionRate = portfolioSummary.total === 0 ? 0 : Math.round((portfolioSummary.completed / portfolioSummary.total) * 100)
   const recentAudits = [...audits].sort((left, right) => right.updatedAt.localeCompare(left.updatedAt)).slice(0, 4)
-  const portfolioPlannedCount = portfolioFilteredPlans.filter((record) => getDashboardPlanStatus(record) === 'Planned').length
-  const portfolioUpcomingCount = portfolioFilteredPlans.filter((record) => getDashboardPlanStatus(record) === 'Upcoming').length
-  const portfolioOverdueCount = portfolioFilteredPlans.filter((record) => getDashboardPlanStatus(record) === 'Overdue').length
+  const portfolioPlannedCount = portfolioFilteredPlans.filter((record) => getDashboardPlanStatus(record, currentDate) === 'Planned').length
+  const portfolioUpcomingCount = portfolioFilteredPlans.filter((record) => getDashboardPlanStatus(record, currentDate) === 'Upcoming').length
+  const portfolioOverdueCount = portfolioFilteredPlans.filter((record) => getDashboardPlanStatus(record, currentDate) === 'Overdue').length
   const upcomingPlans = getUpcomingPlanningRecords(planningRecords, 90).slice(0, 7)
   const monthGroups = groupPlansByMonth(planningRecords, currentYear)
   const maxMonthLoad = Math.max(1, ...monthGroups.map((month) => month.records.length))
@@ -341,20 +228,6 @@ export default function Dashboard() {
     navigate(getAuditRecordHomePath(newAudit))
   }
 
-  function openAuditDrilldown(status?: string, followUp?: string) {
-    const params = new URLSearchParams()
-
-    if (status) {
-      params.set('status', status)
-    }
-
-    if (followUp) {
-      params.set('followUp', followUp)
-    }
-
-    navigate(`/audits${params.toString() ? `?${params.toString()}` : ''}`)
-  }
-
   function openPlanningDrilldown(status?: string) {
     const params = new URLSearchParams({
       year: String(currentYear),
@@ -374,7 +247,7 @@ export default function Dashboard() {
     month: currentDate.getMonth() + 1,
   })
   const hoveredStatusRecords = portfolioHoverStatus
-    ? portfolioFilteredPlans.filter((record) => getDashboardPlanStatus(record) === portfolioHoverStatus)
+    ? portfolioFilteredPlans.filter((record) => getDashboardPlanStatus(record, currentDate) === portfolioHoverStatus)
     : []
   const hoveredStatusRecordPreview = [...hoveredStatusRecords]
     .sort((left, right) => left.plannedStart.localeCompare(right.plannedStart) || left.title.localeCompare(right.title))
@@ -600,7 +473,7 @@ export default function Dashboard() {
                 value={portfolioSummary.completed}
                 tone="green"
                 helper="Closed"
-                onClick={() => openAuditDrilldown('Completed')}
+      onClick={() => openPlanningDrilldown('Completed')}
                 active={portfolioHoverStatus === 'Completed'}
                 onHoverStart={(event) => {
                   if ('clientX' in event) {
@@ -651,7 +524,7 @@ export default function Dashboard() {
                 value={portfolioSummary.inProgress}
                 tone="orange"
                 helper="Underway"
-                onClick={() => openAuditDrilldown('In progress')}
+                onClick={() => openPlanningDrilldown('In progress')}
                 active={portfolioHoverStatus === 'In progress'}
                 onHoverStart={(event) => {
                   if ('clientX' in event) {
@@ -668,7 +541,7 @@ export default function Dashboard() {
                 value={portfolioOverdueCount}
                 tone="red"
                 helper="Needs action"
-                onClick={() => openAuditDrilldown(undefined, 'delayed')}
+                onClick={() => openPlanningDrilldown('Overdue')}
                 active={portfolioHoverStatus === 'Overdue'}
                 onHoverStart={(event) => {
                   if ('clientX' in event) {
@@ -768,7 +641,7 @@ export default function Dashboard() {
           <div className="dashboard-month-grid">
             {monthGroups.map((month) => {
               const monthStandards = [...new Set(month.records.map((record) => record.standard))].slice(0, 2)
-              const delayedRecords = month.records.filter((record) => getDashboardPlanStatus(record) === 'Overdue')
+              const delayedRecords = month.records.filter((record) => getDashboardPlanStatus(record, currentDate) === 'Overdue')
               const delayedCount = delayedRecords.length
               const showDelayedCount = isPastPlanningMonth(currentYear, month.month, currentDate)
               const isCurrentMonth = currentYear === currentDate.getFullYear() && month.month === currentDate.getMonth() + 1
@@ -831,7 +704,7 @@ export default function Dashboard() {
           </div>
           <div className="dashboard-timeline-list">
             {upcomingPlans.map((record) => {
-              const planStatus = getDashboardPlanStatus(record)
+              const planStatus = getDashboardPlanStatus(record, currentDate)
               const planStatusKey = planStatus.toLowerCase().replace(/[^a-z0-9]+/g, '-')
 
               return (
@@ -897,9 +770,9 @@ export default function Dashboard() {
                 </div>
                 <div className="dashboard-audit-progress">
                   <div className="dashboard-audit-progress-track">
-                    <span style={{ width: `${audit.summary.progressPercent}%` }} />
+                    <span style={{ width: `${normalizeProgressPercent(audit.summary.progressPercent)}%` }} />
                   </div>
-                  <strong>{audit.summary.progressPercent}%</strong>
+                  <strong>{normalizeProgressPercent(audit.summary.progressPercent)}%</strong>
                 </div>
               </Link>
             ))}

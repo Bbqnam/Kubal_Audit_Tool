@@ -1,6 +1,7 @@
 import type { ActionPlanItem, ActionPlanUpdatePatch, AuditInfo, AuditParticipant, GenericAuditReportItem } from '../../../types/audit'
 import { useAuditWorkspace } from './useAuditWorkspace'
 import { createAuditHistoryEntry, describeActionPlanItem } from '../../../utils/traceability'
+import { isActionPlanItemSavable } from '../services/actionPlanValidation'
 
 function createId() {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
@@ -217,6 +218,9 @@ export function useGenericAuditWorkspace() {
     saveActionPlanItem: (id: string) => {
       workspace.updateAuditRecord(audit.id, (current) => {
         const action = current.actions.find((item) => item.id === id)
+        if (!action || !isActionPlanItemSavable(action)) {
+          return current
+        }
 
         return {
           ...current,

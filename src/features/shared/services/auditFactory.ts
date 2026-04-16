@@ -49,6 +49,14 @@ function createTimestamp() {
   return new Date().toISOString()
 }
 
+function isIsoDate(value: unknown): value is string {
+  return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(Date.parse(value))
+}
+
+function normalizeIsoDate(value: unknown, fallback: string) {
+  return isIsoDate(value) ? value : fallback
+}
+
 function createRolePlaceholders(owner = '') {
   return {
     owner,
@@ -130,6 +138,16 @@ function normalizeActionPlanEvidenceFiles(files: ActionPlanEvidenceFile[] | unde
     }))
 }
 
+const ACTION_PLAN_STATUS_VALUES = new Set<ActionPlanItem['status']>(['Open', 'In progress', 'Closed'])
+const NONCONFORMITY_VALUES = new Set<NonconformityType>([
+  'Major nonconformity',
+  'Minor nonconformity',
+  'Observation',
+  'Improvement suggestion',
+])
+const VDA65_CHECKLIST_STATUS_VALUES = new Set<Vda65ChecklistItem['status']>(['Pending', 'OK', 'NOK'])
+const VDA65_DEFECT_CLASS_VALUES = new Set<Vda65ChecklistItem['defectClass']>(['A', 'B', 'C'])
+
 function createBlankActionPlanItem(auditType: AuditType, base?: Partial<ActionPlanItem>): ActionPlanItem {
   const clonedBase = clone(base ?? {})
 
@@ -138,7 +156,6 @@ function createBlankActionPlanItem(auditType: AuditType, base?: Partial<ActionPl
     savedAt: null,
     processArea: '',
     clause: '',
-    nonconformityType: 'Minor nonconformity' as NonconformityType,
     section: '',
     finding: '',
     action: clonedBase.action ?? '',
@@ -150,12 +167,17 @@ function createBlankActionPlanItem(auditType: AuditType, base?: Partial<ActionPl
     closureEvidence: clonedBase.closureEvidence ?? '',
     closureEvidenceFiles: normalizeActionPlanEvidenceFiles(clonedBase.closureEvidenceFiles),
     owner: '',
-    dueDate: '',
-    status: 'Open',
     comment: '',
     ...clonedBase,
     id: clonedBase.id ?? createId(),
     auditType,
+    dueDate: normalizeIsoDate(clonedBase.dueDate, normalizeIsoDate(base?.dueDate, '')),
+    status: ACTION_PLAN_STATUS_VALUES.has((clonedBase.status ?? base?.status) as ActionPlanItem['status'])
+      ? (clonedBase.status ?? base?.status) as ActionPlanItem['status']
+      : 'Open',
+    nonconformityType: NONCONFORMITY_VALUES.has((clonedBase.nonconformityType ?? base?.nonconformityType) as NonconformityType)
+      ? (clonedBase.nonconformityType ?? base?.nonconformityType) as NonconformityType
+      : 'Minor nonconformity',
   }
 }
 
@@ -261,9 +283,13 @@ function normalizeLegacyVda65ChecklistItem(item: Partial<Vda65ChecklistItem> & {
     number: item.number ?? '',
     section: item.section ?? 'Legacy',
     requirement: item.requirement ?? '',
-    status: item.status ?? 'Pending',
+    status: VDA65_CHECKLIST_STATUS_VALUES.has(item.status as Vda65ChecklistItem['status'])
+      ? item.status as Vda65ChecklistItem['status']
+      : 'Pending',
     specialCharacteristic: item.specialCharacteristic ?? '',
-    defectClass: item.defectClass ?? 'C',
+    defectClass: VDA65_DEFECT_CLASS_VALUES.has(item.defectClass as Vda65ChecklistItem['defectClass'])
+      ? item.defectClass as Vda65ChecklistItem['defectClass']
+      : 'C',
     unit: item.unit ?? '',
     minTolerance: item.minTolerance ?? '',
     nominalValue: item.nominalValue ?? '',
@@ -321,12 +347,17 @@ function withReportItemIds(items: GenericAuditReportItem[]) {
 }
 
 export function normalizeAuditRecordShape(record: AuditRecord): AuditRecord {
+  const safeRecord = (record && typeof record === 'object' ? record : {}) as Partial<AuditRecord>
+  const safeData = (safeRecord.data && typeof safeRecord.data === 'object' ? safeRecord.data : {}) as Record<string, unknown>
+  const safeAuditInfo = (safeData.auditInfo && typeof safeData.auditInfo === 'object'
+    ? safeData.auditInfo
+    : {}) as Partial<AuditInfo>
   const standard = record.standard ?? getAuditStandardLabel(record.auditType)
   const createdAt = record.createdAt ?? createTimestamp()
   const updatedAt = record.updatedAt ?? createdAt
   const auditId = record.auditId ?? createAuditReferenceId(record.auditDate || createdAt.slice(0, 10))
   const updatedBy = record.updatedBy ?? DEFAULT_AUDIT_ACTOR
-  const roles = createRolePlaceholders(record.owner ?? record.auditor ?? record.data.auditInfo.auditor ?? '')
+  const roles = createRolePlaceholders(record.owner ?? record.auditor ?? safeAuditInfo.auditor ?? '')
   const history: AuditHistoryEntry[] =
     Array.isArray(record.history) && record.history.length
       ? record.history
@@ -349,7 +380,8 @@ export function normalizeAuditRecordShape(record: AuditRecord): AuditRecord {
       data: {
         auditInfo: {
           ...createBlankAuditInfo(vda65AuditInfo),
-          ...record.data.auditInfo,
+            ...safeAuditInfo,
+            date: normalizeIsoDate(safeAuditInfo.date, createdAt.slice(0, 10)),
         },
         productInfo: {
           ...createBlankProductInfo(vda65ProductInfo),
@@ -380,7 +412,8 @@ export function normalizeAuditRecordShape(record: AuditRecord): AuditRecord {
       data: {
         auditInfo: {
           ...createBlankAuditInfo(),
-          ...record.data.auditInfo,
+          ...safeAuditInfo,
+          date: normalizeIsoDate(safeAuditInfo.date, createdAt.slice(0, 10)),
         },
         reportSummary: (record.data as Partial<GenericAuditRecord['data']>).reportSummary ?? '',
         reportItems,
@@ -388,9 +421,9 @@ export function normalizeAuditRecordShape(record: AuditRecord): AuditRecord {
     }
   }
 
-  const legacyQuestions = (record.data as { questions?: Array<{ id: string; score: Vda63QuestionResponse['score']; comment: string; finding: string }> }).questions
+  const legacyQuestions = (safeData as { questions?: Array<{ id: string; score: Vda63QuestionResponse['score']; comment: string; finding: string }> }).questions
   const validQuestionIds = new Set(vda63QuestionBank.map((question) => question.id))
-  const existingResponses = record.data.responses ?? legacyQuestions?.map((question) => ({
+  const existingResponses = (safeData as { responses?: Vda63QuestionResponse[] }).responses ?? legacyQuestions?.map((question) => ({
     id: question.id,
     score: question.score,
     comment: question.comment,
@@ -398,8 +431,9 @@ export function normalizeAuditRecordShape(record: AuditRecord): AuditRecord {
   }))
   const normalizedResponses = existingResponses?.filter((response) => validQuestionIds.has(response.id))
   const hasCompleteResponseSet = normalizedResponses?.length === vda63QuestionBank.length
-  const hasStoredChapterScope = Array.isArray(record.data.chapterScope)
-  const normalizedChapterScope = record.data.chapterScope?.filter((chapter) => chapterOrder.includes(chapter))
+  const chapterScope = (safeData as { chapterScope?: string[] }).chapterScope
+  const hasStoredChapterScope = Array.isArray(chapterScope)
+  const normalizedChapterScope = chapterScope?.filter((chapter): chapter is typeof chapterOrder[number] => chapterOrder.includes(chapter as typeof chapterOrder[number]))
 
   return {
     ...record,
@@ -413,9 +447,13 @@ export function normalizeAuditRecordShape(record: AuditRecord): AuditRecord {
     updatedBy,
     lastModifiedBy: record.lastModifiedBy ?? updatedBy,
     history,
-    auditTeam: normalizeAuditParticipants(record.auditTeam ?? (record.data as { participants?: typeof vda63Participants }).participants ?? clone(vda63Participants)),
+    auditTeam: normalizeAuditParticipants(record.auditTeam ?? (safeData as { participants?: typeof vda63Participants }).participants ?? clone(vda63Participants)),
     data: {
-      auditInfo: record.data.auditInfo,
+      auditInfo: {
+        ...createBlankAuditInfo(vda63AuditInfo),
+        ...safeAuditInfo,
+        date: normalizeIsoDate(safeAuditInfo.date, createdAt.slice(0, 10)),
+      },
       responses:
         hasCompleteResponseSet && normalizedResponses
           ? createBlankVda63Responses().map((response) => normalizedResponses.find((item) => item.id === response.id) ?? response)

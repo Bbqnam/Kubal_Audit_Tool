@@ -6,6 +6,7 @@ import { normalizeAuditRecordShape, synchronizeAuditRecord } from './auditFactor
 
 export const IMPORT_DATA_SHEET_NAME = 'Import Data'
 export const IMPORT_SCHEMA_VERSION = 1
+const LEGACY_SCHEMA_VERSION = 0
 const TRANSFER_PAYLOAD_CHUNK_SIZE = 30000
 
 export type TransferEntityType = 'audit' | 'audit-library' | 'planning-library'
@@ -28,6 +29,10 @@ export type MergeResult<T> = {
   imported: number
   updated: number
   skipped: number
+}
+
+function asSafeErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : 'Unknown import error.'
 }
 
 function uniqueStrings(values: Array<string | null | undefined>) {
@@ -88,9 +93,21 @@ function parseTransferEnvelope(value: unknown): TransferEnvelope {
     throw new Error('Unsupported import file type.')
   }
 
+  const rawSchemaVersion = envelope.schemaVersion
+  const parsedSchemaVersion = Number(rawSchemaVersion)
+  const schemaVersion = Number.isFinite(parsedSchemaVersion)
+    ? parsedSchemaVersion
+    : rawSchemaVersion == null
+      ? LEGACY_SCHEMA_VERSION
+      : Number.NaN
+
+  if (!Number.isInteger(schemaVersion) || schemaVersion < LEGACY_SCHEMA_VERSION || schemaVersion > IMPORT_SCHEMA_VERSION) {
+    throw new Error(`Unsupported import schema version ${String(rawSchemaVersion)}.`)
+  }
+
   return {
     entityType: envelope.entityType,
-    schemaVersion: Number(envelope.schemaVersion ?? IMPORT_SCHEMA_VERSION),
+    schemaVersion,
     exportedAt: typeof envelope.exportedAt === 'string' ? envelope.exportedAt : new Date().toISOString(),
     label: typeof envelope.label === 'string' ? envelope.label : 'Imported file',
     payload: envelope.payload,
@@ -106,7 +123,22 @@ function parseWorkbookTransfer(workbook: XLSX.WorkBook): TransferEnvelope {
 
   const rows = XLSX.utils.sheet_to_json<Record<string, string | number>>(importSheet, { defval: '' })
   const firstRow = rows[0]
-  const payload = rows
+  const sheetEntityTypes = uniqueStrings(rows.map((row) => (typeof row.Entity === 'string' ? row.Entity : null)))
+  if (sheetEntityTypes.length !== 1) {
+    throw new Error('Import Data sheet has inconsistent entity types across rows.')
+  }
+
+  const sheetSchemaVersions = uniqueStrings(
+    rows.map((row) => {
+      const value = row['Schema Version']
+      return value === '' || value == null ? null : String(value)
+    }),
+  )
+  if (sheetSchemaVersions.length > 1) {
+    throw new Error('Import Data sheet has inconsistent schema versions across rows.')
+  }
+
+  const payloadRows = rows
     .map((row, index) => ({
       chunk:
         typeof row.Payload === 'string'
@@ -118,30 +150,59 @@ function parseWorkbookTransfer(workbook: XLSX.WorkBook): TransferEnvelope {
       index,
     }))
     .filter((row) => row.chunk.length > 0)
-    .sort((left, right) => left.part - right.part || left.index - right.index)
-    .map((row) => row.chunk)
-    .join('')
+  const duplicatePart = payloadRows.find(
+    (row, index) => payloadRows.findIndex((candidate) => candidate.part === row.part) !== index,
+  )
+  if (duplicatePart) {
+    throw new Error(`Import Data sheet has duplicate payload part ${duplicatePart.part}.`)
+  }
+  const sortedPayloadRows = payloadRows.sort((left, right) => left.part - right.part || left.index - right.index)
+  const hasMissingPart = sortedPayloadRows.some((row, index) => row.part !== index + 1)
+  if (hasMissingPart) {
+    throw new Error('Import Data sheet payload parts are incomplete or out of order.')
+  }
+  const payload = sortedPayloadRows.map((row) => row.chunk).join('')
 
   if (!firstRow || !payload) {
     throw new Error('Import Data sheet is missing the serialized payload.')
   }
 
-  return parseTransferEnvelope({
-    entityType: firstRow.Entity,
-    schemaVersion: Number(firstRow['Schema Version'] ?? IMPORT_SCHEMA_VERSION),
-    exportedAt: String(firstRow['Exported At'] ?? new Date().toISOString()),
-    label: String(firstRow.Label ?? 'Imported file'),
-    payload: JSON.parse(payload),
-  })
+  try {
+    return parseTransferEnvelope({
+      entityType: firstRow.Entity,
+      schemaVersion: Number(firstRow['Schema Version'] ?? LEGACY_SCHEMA_VERSION),
+      exportedAt: String(firstRow['Exported At'] ?? new Date().toISOString()),
+      label: String(firstRow.Label ?? 'Imported file'),
+      payload: JSON.parse(payload),
+    })
+  } catch (error) {
+    if (error instanceof SyntaxError) {
+      throw new Error('Import Data payload is corrupted and cannot be parsed.')
+    }
+
+    throw error
+  }
 }
 
 export async function parseImportFile(file: File): Promise<ImportParseResult> {
   const lowerName = file.name.toLowerCase()
-  const envelope = lowerName.endsWith('.json')
-    ? parseTransferEnvelope(JSON.parse(await file.text()))
-    : parseWorkbookTransfer(XLSX.read(await file.arrayBuffer(), { type: 'array' }))
+  let envelope: TransferEnvelope
 
-  if (envelope.schemaVersion !== IMPORT_SCHEMA_VERSION) {
+  if (lowerName.endsWith('.json')) {
+    try {
+      envelope = parseTransferEnvelope(JSON.parse(await file.text()))
+    } catch (error) {
+      if (error instanceof SyntaxError) {
+        throw new Error('JSON import file is malformed and could not be parsed.')
+      }
+
+      throw error
+    }
+  } else {
+    envelope = parseWorkbookTransfer(XLSX.read(await file.arrayBuffer(), { type: 'array' }))
+  }
+
+  if (envelope.schemaVersion > IMPORT_SCHEMA_VERSION) {
     throw new Error(`Unsupported import schema version ${envelope.schemaVersion}.`)
   }
 
@@ -150,9 +211,16 @@ export async function parseImportFile(file: File): Promise<ImportParseResult> {
       throw new Error('Audit import payload is empty.')
     }
 
+    let normalizedAudit: AuditRecord
+    try {
+      normalizedAudit = synchronizeAuditRecord(normalizeAuditRecordShape(envelope.payload as AuditRecord))
+    } catch (error) {
+      throw new Error(`Audit import payload is invalid: ${asSafeErrorMessage(error)}`)
+    }
+
     return {
       entityType: 'audit',
-      audits: [synchronizeAuditRecord(normalizeAuditRecordShape(envelope.payload as AuditRecord))],
+      audits: [normalizedAudit],
       label: envelope.label,
       exportedAt: envelope.exportedAt,
     }
@@ -163,9 +231,17 @@ export async function parseImportFile(file: File): Promise<ImportParseResult> {
       throw new Error('Audit library payload must be a list of audits.')
     }
 
+    const audits = envelope.payload.map((record, index) => {
+      try {
+        return synchronizeAuditRecord(normalizeAuditRecordShape(record as AuditRecord))
+      } catch (error) {
+        throw new Error(`Audit library entry ${index + 1} is invalid: ${asSafeErrorMessage(error)}`)
+      }
+    })
+
     return {
       entityType: 'audit-library',
-      audits: envelope.payload.map((record) => synchronizeAuditRecord(normalizeAuditRecordShape(record as AuditRecord))),
+      audits,
       label: envelope.label,
       exportedAt: envelope.exportedAt,
     }
@@ -175,9 +251,17 @@ export async function parseImportFile(file: File): Promise<ImportParseResult> {
     throw new Error('Planning payload must be a list of planning records.')
   }
 
+  const planningRecords = envelope.payload.map((record, index) => {
+    try {
+      return normalizePlanningRecordShape(record as AuditPlanRecord)
+    } catch (error) {
+      throw new Error(`Planning entry ${index + 1} is invalid: ${asSafeErrorMessage(error)}`)
+    }
+  })
+
   return {
     entityType: 'planning-library',
-    planningRecords: envelope.payload.map((record) => normalizePlanningRecordShape(record as AuditPlanRecord)),
+    planningRecords,
     label: envelope.label,
     exportedAt: envelope.exportedAt,
   }

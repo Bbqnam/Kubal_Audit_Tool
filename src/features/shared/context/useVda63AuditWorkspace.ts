@@ -3,6 +3,7 @@ import { buildVda63AuditQuestions, chapterOrder } from '../../../utils/auditUtil
 import type { ActionPlanItem, ActionPlanUpdatePatch, AuditInfo, AuditParticipant, ScoreOption, Vda63ChapterKey, Vda63QuestionResponse } from '../../../types/audit'
 import { useAuditWorkspace } from './useAuditWorkspace'
 import { createAuditHistoryEntry, describeActionPlanItem } from '../../../utils/traceability'
+import { isActionPlanItemSavable } from '../services/actionPlanValidation'
 
 function updateListItem<T extends { id: string }>(items: T[], id: string, patch: Partial<T>) {
   return items.map((item) => (item.id === id ? { ...item, ...patch } : item))
@@ -122,6 +123,9 @@ export function useVda63AuditWorkspace() {
     saveActionPlanItem: (id: string) => {
       workspace.updateAuditRecord(audit.id, (current) => {
         const action = current.actions.find((item) => item.id === id)
+        if (!action || !isActionPlanItemSavable(action)) {
+          return current
+        }
 
         return {
           ...current,

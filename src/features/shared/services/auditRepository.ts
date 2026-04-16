@@ -215,7 +215,8 @@ export function createLocalStorageAuditRepository(): AuditRepository {
           window.localStorage.removeItem(LEGACY_APP_STORAGE_KEY)
         }
         return workspace
-      } catch {
+      } catch (error) {
+        console.error('Failed to load persisted workspace, restoring seed workspace.', error)
         const seededWorkspace = createSeedWorkspace()
         window.localStorage.setItem(APP_STORAGE_KEY, JSON.stringify(seededWorkspace))
         return seededWorkspace
@@ -226,7 +227,11 @@ export function createLocalStorageAuditRepository(): AuditRepository {
         return
       }
 
-      window.localStorage.setItem(APP_STORAGE_KEY, JSON.stringify(snapshot))
+      try {
+        window.localStorage.setItem(APP_STORAGE_KEY, JSON.stringify(snapshot))
+      } catch (error) {
+        console.error('Failed to persist workspace snapshot.', error)
+      }
     },
   }
 }

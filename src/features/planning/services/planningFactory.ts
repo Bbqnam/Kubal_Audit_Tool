@@ -30,6 +30,16 @@ function createId(prefix: string) {
   return `${prefix}-${Math.random().toString(36).slice(2, 10)}`
 }
 
+function isIsoDate(value: unknown): value is string {
+  return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(Date.parse(value))
+}
+
+function normalizeIsoDate(value: unknown, fallback: string) {
+  return isIsoDate(value) ? value : fallback
+}
+
+const PLAN_STATUS_VALUES = new Set<AuditPlanStatus>(['Planned', 'In progress', 'Completed', 'Overdue', 'Cancelled'])
+
 export function createPlanningTimestamp() {
   return new Date().toISOString()
 }
@@ -147,7 +157,8 @@ function ensureDateOrder(plannedStart: string, plannedEnd: string) {
 }
 
 function deriveYearMonth(plannedStart: string) {
-  const safeDate = plannedStart || new Date().toISOString().slice(0, 10)
+  const fallback = new Date().toISOString().slice(0, 10)
+  const safeDate = normalizeIsoDate(plannedStart, fallback)
 
   return {
     year: Number(safeDate.slice(0, 4)),
@@ -157,8 +168,8 @@ function deriveYearMonth(plannedStart: string) {
 
 export function normalizePlanningRecordShape(record: AuditPlanRecord): AuditPlanRecord {
   const now = record.updatedAt ?? createPlanningTimestamp()
-  const plannedStart = record.plannedStart || now.slice(0, 10)
-  const plannedEnd = record.plannedEnd || plannedStart
+  const plannedStart = normalizeIsoDate(record.plannedStart, now.slice(0, 10))
+  const plannedEnd = normalizeIsoDate(record.plannedEnd, plannedStart)
   const orderedDates = ensureDateOrder(plannedStart, plannedEnd)
   const derived = deriveYearMonth(orderedDates.plannedStart)
 
@@ -169,7 +180,8 @@ export function normalizePlanningRecordShape(record: AuditPlanRecord): AuditPlan
     plannedEnd: orderedDates.plannedEnd,
     year: derived.year,
     month: derived.month,
-    actualCompletionDate: record.actualCompletionDate ?? null,
+    status: PLAN_STATUS_VALUES.has(record.status) ? record.status : 'Planned',
+    actualCompletionDate: normalizeIsoDate(record.actualCompletionDate, '') || null,
     completionDateChangeReason: record.completionDateChangeReason ?? '',
     completionResult: record.completionResult ?? '',
     completionSummary: record.completionSummary ?? '',

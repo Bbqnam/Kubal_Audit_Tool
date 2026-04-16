@@ -153,6 +153,9 @@ export function AuditWorkspaceProvider({ children }: { children: React.ReactNode
   const [planningChecklist, setPlanningChecklist] = useState(initialWorkspace.planningChecklist)
   const [saveState, setSaveState] = useState<AuditWorkspaceContextValue['saveState']>('Saved')
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(() => audits[0]?.updatedAt ?? null)
+  const auditsRef = useRef(audits)
+  const planningRecordsRef = useRef(planningRecords)
+  const usersRef = useRef(users)
   const planningYears = useMemo(
     () => mergePlanningYears(planningRecords, storedPlanningYears),
     [planningRecords, storedPlanningYears],
@@ -167,25 +170,42 @@ export function AuditWorkspaceProvider({ children }: { children: React.ReactNode
   )
 
   useEffect(() => {
+    auditsRef.current = audits
+  }, [audits])
+
+  useEffect(() => {
+    planningRecordsRef.current = planningRecords
+  }, [planningRecords])
+
+  useEffect(() => {
+    usersRef.current = users
+  }, [users])
+
+  useEffect(() => {
     if (isFirstRender.current) {
       isFirstRender.current = false
       return
     }
 
     const timeoutId = window.setTimeout(() => {
-      repository.saveWorkspace({
-        audits,
-        auditLibraryHistory,
-        userAdminHistory,
-        users,
-        planningRecords,
-        planningActivityLog,
-        activePlanningUserId: activePlanningUser?.id ?? null,
-        planningYears,
-        planningChecklist,
-      })
-      setSaveState('Saved')
-      setLastSavedAt(new Date().toISOString())
+      try {
+        repository.saveWorkspace({
+          audits,
+          auditLibraryHistory,
+          userAdminHistory,
+          users,
+          planningRecords,
+          planningActivityLog,
+          activePlanningUserId: activePlanningUser?.id ?? null,
+          planningYears,
+          planningChecklist,
+        })
+        setSaveState('Saved')
+        setLastSavedAt(new Date().toISOString())
+      } catch (error) {
+        console.error('Workspace save failed.', error)
+        setSaveState('Saved')
+      }
     }, 250)
 
     return () => window.clearTimeout(timeoutId)
@@ -273,10 +293,12 @@ export function AuditWorkspaceProvider({ children }: { children: React.ReactNode
       saveState,
       lastSavedAt,
       createAudit: (auditType) => {
+        const currentAudits = auditsRef.current
+        const currentPlanningRecords = planningRecordsRef.current
         const newRecord = createAuditRecord(
           auditType,
-          audits.map((audit) => audit.id),
-          collectReservedAuditIds(audits, planningRecords),
+          currentAudits.map((audit) => audit.id),
+          collectReservedAuditIds(currentAudits, currentPlanningRecords),
         )
         setSaveState('Saving')
         setAudits((current) => [newRecord, ...current])
@@ -284,7 +306,9 @@ export function AuditWorkspaceProvider({ children }: { children: React.ReactNode
         return newRecord
       },
       createPlanRecord: (record) => {
-        const newPlanRecord = createPlanningRecord(record, collectReservedAuditIds(audits, planningRecords), planningActor)
+        const currentAudits = auditsRef.current
+        const currentPlanningRecords = planningRecordsRef.current
+        const newPlanRecord = createPlanningRecord(record, collectReservedAuditIds(currentAudits, currentPlanningRecords), planningActor)
         setSaveState('Saving')
         setPlanningRecords((current) => [newPlanRecord, ...current])
         setPlanningActivityLog((current) => prependPlanningActivityLog(current, createPlanningActivityEntry({
@@ -299,7 +323,9 @@ export function AuditWorkspaceProvider({ children }: { children: React.ReactNode
         return newPlanRecord
       },
       createAuditFromPlan: (planId) => {
-        const plan = planningRecords.find((record) => record.id === planId)
+        const currentPlanningRecords = planningRecordsRef.current
+        const currentAudits = auditsRef.current
+        const plan = currentPlanningRecords.find((record) => record.id === planId)
         const executionAuditType = plan ? getPlanExecutionAuditType(plan) : null
 
         if (!plan || !executionAuditType) {
@@ -308,8 +334,8 @@ export function AuditWorkspaceProvider({ children }: { children: React.ReactNode
 
         const baseRecord = createAuditRecord(
           executionAuditType,
-          audits.map((audit) => audit.id),
-          collectReservedAuditIds(audits, planningRecords),
+          currentAudits.map((audit) => audit.id),
+          collectReservedAuditIds(currentAudits, currentPlanningRecords),
           plan.auditId,
         )
         const reference = `${plan.standard}-${plan.year}-${String(plan.month).padStart(2, '0')}`
@@ -432,13 +458,15 @@ export function AuditWorkspaceProvider({ children }: { children: React.ReactNode
         return hydratedRecord
       },
       duplicatePlanRecord: (id) => {
-        const sourceRecord = planningRecords.find((record) => record.id === id)
+        const currentPlanningRecords = planningRecordsRef.current
+        const currentAudits = auditsRef.current
+        const sourceRecord = currentPlanningRecords.find((record) => record.id === id)
 
         if (!sourceRecord) {
           return null
         }
 
-        const newPlanRecord = duplicatePlanningRecord(sourceRecord, collectReservedAuditIds(audits, planningRecords), planningActor)
+        const newPlanRecord = duplicatePlanningRecord(sourceRecord, collectReservedAuditIds(currentAudits, currentPlanningRecords), planningActor)
         setSaveState('Saving')
         setPlanningRecords((current) => [newPlanRecord, ...current])
         setPlanningActivityLog((current) => prependPlanningActivityLog(current, createPlanningActivityEntry({
@@ -453,7 +481,9 @@ export function AuditWorkspaceProvider({ children }: { children: React.ReactNode
         return newPlanRecord
       },
       duplicateAudit: (id) => {
-        const sourceRecord = audits.find((audit) => audit.id === id)
+        const currentAudits = auditsRef.current
+        const currentPlanningRecords = planningRecordsRef.current
+        const sourceRecord = currentAudits.find((audit) => audit.id === id)
 
         if (!sourceRecord) {
           return null
@@ -461,8 +491,8 @@ export function AuditWorkspaceProvider({ children }: { children: React.ReactNode
 
         const newRecord = duplicateAuditRecord(
           sourceRecord,
-          audits.map((audit) => audit.id),
-          collectReservedAuditIds(audits, planningRecords),
+          currentAudits.map((audit) => audit.id),
+          collectReservedAuditIds(currentAudits, currentPlanningRecords),
         )
         setSaveState('Saving')
         setAudits((current) => [newRecord, ...current])
@@ -475,7 +505,8 @@ export function AuditWorkspaceProvider({ children }: { children: React.ReactNode
         return newRecord
       },
       changeAuditType: (id, auditType) => {
-        const sourceRecord = audits.find((audit) => audit.id === id)
+        const currentAudits = auditsRef.current
+        const sourceRecord = currentAudits.find((audit) => audit.id === id)
 
         if (!sourceRecord) {
           return null
@@ -486,7 +517,7 @@ export function AuditWorkspaceProvider({ children }: { children: React.ReactNode
           'updated',
           `Audit workflow changed from ${sourceRecord.auditType} to ${auditType}.`,
         )
-        const existingIds = audits.filter((audit) => audit.id !== id).map((audit) => audit.id)
+        const existingIds = currentAudits.filter((audit) => audit.id !== id).map((audit) => audit.id)
         const nextId = createAuditRouteId(
           changedRecord.auditType,
           changedRecord.auditDate,
@@ -522,7 +553,7 @@ export function AuditWorkspaceProvider({ children }: { children: React.ReactNode
         return updatedRecord
       },
       deleteAudit: (id) => {
-        const sourceRecord = audits.find((audit) => audit.id === id)
+        const sourceRecord = auditsRef.current.find((audit) => audit.id === id)
         setSaveState('Saving')
         setAudits((current) => current.filter((audit) => audit.id !== id))
         if (sourceRecord) {
@@ -551,7 +582,7 @@ export function AuditWorkspaceProvider({ children }: { children: React.ReactNode
         )
       },
       deletePlanRecord: (id) => {
-        const sourceRecord = planningRecords.find((record) => record.id === id)
+        const sourceRecord = planningRecordsRef.current.find((record) => record.id === id)
         setSaveState('Saving')
         setPlanningRecords((current) => current.filter((record) => record.id !== id))
         if (sourceRecord) {
@@ -569,7 +600,7 @@ export function AuditWorkspaceProvider({ children }: { children: React.ReactNode
       getAuditById: (id) => audits.find((audit) => audit.id === id || audit.legacyIds?.includes(id)),
       getPlanById: (id) => planningRecords.find((record) => record.id === id),
       updateAuditRecord: (id, updater) => {
-        const sourceRecord = audits.find((record) => record.id === id)
+        const sourceRecord = auditsRef.current.find((record) => record.id === id)
 
         if (!sourceRecord) {
           return
@@ -602,7 +633,7 @@ export function AuditWorkspaceProvider({ children }: { children: React.ReactNode
         ))
       },
       updatePlanRecord: (id, updater) => {
-        const sourceRecord = planningRecords.find((record) => record.id === id)
+        const sourceRecord = planningRecordsRef.current.find((record) => record.id === id)
 
         if (!sourceRecord) {
           return
@@ -642,7 +673,7 @@ export function AuditWorkspaceProvider({ children }: { children: React.ReactNode
         }
       },
       importAudits: (records) => {
-        const mergeResult = mergeImportedAudits(audits, records)
+        const mergeResult = mergeImportedAudits(auditsRef.current, records)
         setSaveState('Saving')
         setAudits(mergeResult.records)
         setAuditLibraryHistory((current) => appendLibraryHistory(
@@ -653,7 +684,7 @@ export function AuditWorkspaceProvider({ children }: { children: React.ReactNode
         return mergeResult
       },
       importPlanningRecords: (records) => {
-        const mergeResult = mergeImportedPlanningRecords(planningRecords, records, audits)
+        const mergeResult = mergeImportedPlanningRecords(planningRecordsRef.current, records, auditsRef.current)
         setSaveState('Saving')
         setPlanningRecords(mergeResult.records)
         setPlanningActivityLog((current) => prependPlanningActivityLog(current, createPlanningActivityEntry({
@@ -666,7 +697,7 @@ export function AuditWorkspaceProvider({ children }: { children: React.ReactNode
       },
       createUser: (seed) => {
         const placeholderBase = 'New user'
-        const usedNames = new Set(users.map((user) => user.name))
+        const usedNames = new Set(usersRef.current.map((user) => user.name))
         const baseName = sanitizeUserName(seed?.name ?? '') || placeholderBase
         let nextName = baseName
         let suffix = 2
@@ -691,7 +722,8 @@ export function AuditWorkspaceProvider({ children }: { children: React.ReactNode
         return newUser
       },
       updateUser: (id, updater) => {
-        const existingUser = users.find((user) => user.id === id)
+        const currentUsers = usersRef.current
+        const existingUser = currentUsers.find((user) => user.id === id)
 
         if (!existingUser) {
           return
@@ -703,7 +735,7 @@ export function AuditWorkspaceProvider({ children }: { children: React.ReactNode
         })
         const previousName = existingUser.name
         const nextName = sanitizeUserName(nextUser.name)
-        const duplicateExists = users.some((user) => user.id !== id && user.name === nextName)
+        const duplicateExists = currentUsers.some((user) => user.id !== id && user.name === nextName)
 
         if (!nextName || duplicateExists) {
           return
@@ -744,7 +776,7 @@ export function AuditWorkspaceProvider({ children }: { children: React.ReactNode
         }
       },
       deleteUser: (id) => {
-        const existingUser = users.find((user) => user.id === id)
+        const existingUser = usersRef.current.find((user) => user.id === id)
 
         setSaveState('Saving')
         setUsers((current) => current.filter((user) => user.id !== id))
@@ -756,7 +788,7 @@ export function AuditWorkspaceProvider({ children }: { children: React.ReactNode
         }
       },
       setActivePlanningUser: (id) => {
-        if (!users.some((user) => user.id === id)) {
+        if (!usersRef.current.some((user) => user.id === id)) {
           return
         }
 
