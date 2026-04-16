@@ -19,12 +19,26 @@ import {
 
 const MONTH_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
+function mapDateToYear(dateValue: string, targetYear: number) {
+  const parsed = new Date(`${dateValue}T00:00:00`)
+  if (Number.isNaN(parsed.getTime())) {
+    return `${targetYear}-01-01`
+  }
+
+  const month = parsed.getMonth()
+  const day = parsed.getDate()
+  const maxDaysInMonth = new Date(targetYear, month + 1, 0).getDate()
+  const safeDay = Math.min(day, maxDaysInMonth)
+  const shifted = new Date(targetYear, month, safeDay)
+  return shifted.toISOString().slice(0, 10)
+}
+
 function StatusDot({ status }: { status: string }) {
   return <span className={`planning-status-dot threeyear-status-dot ${getPlanStatusDotClass(status)}`} />
 }
 
 export default function ThreeYearPlanPage() {
-  const { planningRecords, planningYears, addPlanningYear, deletePlanningYear } = useAuditLibrary()
+  const { planningRecords, planningYears, addPlanningYear, createPlanRecord, deletePlanningYear } = useAuditLibrary()
   const currentDate = new Date()
   const currentYear = currentDate.getFullYear()
   const [collapsedYears, setCollapsedYears] = useState<Record<number, boolean>>(() =>
@@ -42,6 +56,10 @@ export default function ThreeYearPlanPage() {
     '--threeyear-summary-card-width': summaryCardWidth,
   } as CSSProperties
   const [expandedMonths, setExpandedMonths] = useState<Record<number, number>>({})
+  const [addMenuOpen, setAddMenuOpen] = useState(false)
+  const [duplicatePanelOpen, setDuplicatePanelOpen] = useState(false)
+  const [duplicateSourceYear, setDuplicateSourceYear] = useState<number>(() => years[years.length - 1] ?? currentYear)
+  const [duplicateTargetYear, setDuplicateTargetYear] = useState<number>(() => (years[years.length - 1] ?? currentYear) + 1)
 
   function toggleExpandedMonth(year: number, month: number) {
     setExpandedMonths((current) => ({
@@ -68,17 +86,67 @@ export default function ThreeYearPlanPage() {
       ...current,
       [nextYear]: false,
     }))
+    setAddMenuOpen(false)
+    setDuplicatePanelOpen(false)
+  }
+
+  function handleDuplicateYear() {
+    if (!Number.isInteger(duplicateSourceYear) || !Number.isInteger(duplicateTargetYear)) {
+      return
+    }
+
+    if (duplicateSourceYear === duplicateTargetYear) {
+      window.alert('Choose a different target year to duplicate into.')
+      return
+    }
+
+    const sourceRecords = planningRecords.filter((record) => record.year === duplicateSourceYear)
+    if (!sourceRecords.length) {
+      window.alert(`Year ${duplicateSourceYear} has no records to duplicate.`)
+      return
+    }
+
+    addPlanningYear(duplicateTargetYear)
+    sourceRecords.forEach((record) => {
+      createPlanRecord({
+        title: record.title,
+        standard: record.standard,
+        auditType: record.auditType,
+        auditCategory: record.auditCategory,
+        internalExternal: record.internalExternal,
+        department: record.department,
+        processArea: record.processArea,
+        site: record.site,
+        owner: record.owner,
+        plannedStart: mapDateToYear(record.plannedStart, duplicateTargetYear),
+        plannedEnd: mapDateToYear(record.plannedEnd, duplicateTargetYear),
+        frequency: record.frequency,
+        status: 'Planned',
+        notes: record.notes,
+        linkedAuditId: null,
+        source: 'manual',
+      })
+    })
+
+    setExpandedMonths((current) => ({
+      ...current,
+      [duplicateTargetYear]: 1,
+    }))
+    setCollapsedYears((current) => ({
+      ...current,
+      [duplicateTargetYear]: false,
+    }))
+    setAddMenuOpen(false)
+    setDuplicatePanelOpen(false)
   }
 
   function handleDeleteYear(year: number) {
     const yearRecords = planningRecords.filter((record) => record.year === year)
-
-    if (yearRecords.length > 0) {
-      window.alert(`"${year}" still has planned audits. Remove those records before deleting the year.`)
-      return
-    }
-
-    const confirmed = window.confirm(`Delete year "${year}" from the 3-year plan?`)
+    const confirmed = window.confirm(
+      yearRecords.length > 0
+        ? `Delete year "${year}" and all ${yearRecords.length} planned audit${yearRecords.length === 1 ? '' : 's'} inside it? This cannot be undone.`
+        : `Delete year "${year}" from the 3-year plan?`,
+    )
 
     if (!confirmed) {
       return
@@ -122,19 +190,71 @@ export default function ThreeYearPlanPage() {
         <button
           type="button"
           className="button button-secondary threeyear-add-year-button threeyear-icon-button"
-          onClick={handleAddYear}
+          onClick={() => setAddMenuOpen((current) => !current)}
           aria-label="Add year"
           title="Add year"
         >
           <ButtonLabel icon="add" label="Add year" hideLabel />
         </button>
+        {addMenuOpen ? (
+          <div className="threeyear-add-menu">
+            <button type="button" className="button button-secondary button-small" onClick={handleAddYear}>
+              <ButtonLabel icon="add" label="Add blank year" />
+            </button>
+            <button
+              type="button"
+              className="button button-secondary button-small"
+              onClick={() => {
+                const suggestedSource = years[years.length - 1] ?? currentYear
+                const suggestedTarget = suggestedSource + 1
+                setDuplicateSourceYear(suggestedSource)
+                setDuplicateTargetYear(suggestedTarget)
+                setDuplicatePanelOpen(true)
+              }}
+            >
+              <ButtonLabel icon="duplicate" label="Duplicate year" />
+            </button>
+            {duplicatePanelOpen ? (
+              <div className="threeyear-duplicate-panel">
+                <label className="field">
+                  <span>Duplicate from</span>
+                  <select
+                    value={duplicateSourceYear}
+                    onChange={(event) => setDuplicateSourceYear(Number(event.target.value))}
+                  >
+                    {years.map((year) => (
+                      <option key={year} value={year}>{year}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="field">
+                  <span>Duplicate into year</span>
+                  <input
+                    type="number"
+                    min={1900}
+                    max={9999}
+                    value={duplicateTargetYear}
+                    onChange={(event) => setDuplicateTargetYear(Number(event.target.value))}
+                  />
+                </label>
+                <div className="threeyear-duplicate-actions">
+                  <button type="button" className="button button-secondary button-small" onClick={() => setDuplicatePanelOpen(false)}>
+                    Cancel
+                  </button>
+                  <button type="button" className="button button-primary button-small" onClick={handleDuplicateYear}>
+                    Duplicate
+                  </button>
+                </div>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
       </div>
 
       <div className="threeyear-grid">
         {years.map((year) => {
           const monthGroups = groupPlansByMonth(planningRecords, year)
           const summary = summarizePlans(planningRecords.filter((record) => record.year === year))
-          const canDeleteYear = summary.total === 0
           const expandedMonth = expandedMonths[year] ?? 0
           const isCollapsed = collapsedYears[year] ?? false
           const expandedMonthRecords = expandedMonth ? monthGroups[expandedMonth - 1]?.records ?? [] : []
@@ -166,9 +286,8 @@ export default function ThreeYearPlanPage() {
                     type="button"
                     className="button button-secondary button-small button-danger threeyear-delete-button threeyear-icon-button"
                     onClick={() => handleDeleteYear(year)}
-                    disabled={!canDeleteYear}
-                    aria-label={canDeleteYear ? `Delete ${year}` : 'Remove planned audits before deleting this year'}
-                    title={canDeleteYear ? `Delete ${year}` : 'Remove planned audits before deleting this year'}
+                    aria-label={`Delete ${year}`}
+                    title={`Delete ${year}`}
                   >
                     <ButtonLabel icon="delete" label={`Delete ${year}`} hideLabel />
                   </button>

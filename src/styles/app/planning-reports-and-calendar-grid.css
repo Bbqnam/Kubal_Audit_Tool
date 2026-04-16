@@ -99,6 +99,32 @@
   white-space: nowrap;
 }
 
+.threeyear-add-menu {
+  position: relative;
+  display: grid;
+  gap: 0.4rem;
+  align-content: start;
+  padding: 0.55rem;
+  border-radius: 0.85rem;
+  border: 1px solid rgba(32, 48, 69, 0.1);
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 12px 24px rgba(16, 24, 40, 0.1);
+}
+
+.threeyear-duplicate-panel {
+  display: grid;
+  gap: 0.42rem;
+  margin-top: 0.12rem;
+  padding-top: 0.4rem;
+  border-top: 1px solid rgba(32, 48, 69, 0.08);
+}
+
+.threeyear-duplicate-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.35rem;
+}
+
 .threeyear-icon-button {
   display: inline-flex;
   align-items: center;

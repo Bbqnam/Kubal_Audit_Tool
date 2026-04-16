@@ -819,23 +819,32 @@ export function AuditWorkspaceProvider({ children }: { children: React.ReactNode
           return
         }
 
-        if (planningRecords.some((record) => record.year === year)) {
-          return
-        }
-
         if (!planningYears.includes(year)) {
           return
         }
 
+        const removedRecords = planningRecordsRef.current.filter((record) => record.year === year)
         setSaveState('Saving')
+        if (removedRecords.length) {
+          setPlanningRecords((current) => current.filter((record) => record.year !== year))
+          setPlanningActivityLog((current) => prependPlanningActivityLog(current, createPlanningActivityEntry({
+            action: 'Deleted',
+            summary: `Deleted year ${year} and removed ${removedRecords.length} planned audit${removedRecords.length === 1 ? '' : 's'}.`,
+            entityType: 'Planning year',
+            actor: planningActor,
+            year,
+          })))
+        }
         setStoredPlanningYears((current) => current.filter((entry) => entry !== year))
-        setPlanningActivityLog((current) => prependPlanningActivityLog(current, createPlanningActivityEntry({
-          action: 'Year removed',
-          summary: `Removed ${year} from the 3-year planning horizon.`,
-          entityType: 'Planning year',
-          actor: planningActor,
-          year,
-        })))
+        if (!removedRecords.length) {
+          setPlanningActivityLog((current) => prependPlanningActivityLog(current, createPlanningActivityEntry({
+            action: 'Year removed',
+            summary: `Removed ${year} from the 3-year planning horizon.`,
+            entityType: 'Planning year',
+            actor: planningActor,
+            year,
+          })))
+        }
       },
       updatePlanningChecklistYear: (id, year, status) => {
         const checklistItem = planningChecklist.find((item) => item.id === id)
