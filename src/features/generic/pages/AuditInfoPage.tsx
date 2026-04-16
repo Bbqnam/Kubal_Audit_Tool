@@ -32,20 +32,29 @@ export default function GenericAuditInfoPage() {
   const workflowLabel = selectedTemplateOption?.workflowLabel ?? (getAuditWorkspaceKind(audit.auditType) === 'generic' ? 'Shared report template' : 'Dedicated template')
   const linkedPlanRecord = audit.planRecordId ? getPlanById(audit.planRecordId) ?? null : null
 
-  function handleChangeTemplate(nextStandard: string) {
-    if (!nextStandard) {
-      updateAuditStandard('')
-      return
+ function handleChangeTemplate(nextStandard: string) {
+  const templateOption = sharedAuditTemplateOptions.find(
+    (option) => option.standard === nextStandard,
+  )
+
+  updateAuditRecord(audit.id, (current) => {
+    const shouldUpdateTitle =
+      !current.title.trim() ||
+      current.title === getAuditTitleLabel(current.auditType) ||
+      current.title === 'Audit Report' ||
+      sharedAuditTemplateOptions.some(
+        (option) => option.suggestedTitle === current.title,
+      )
+
+    return {
+      ...current,
+      standard: nextStandard,
+      title: shouldUpdateTitle
+        ? templateOption?.suggestedTitle ?? 'Audit Report'
+        : current.title,
     }
-
-    const templateOption = sharedAuditTemplateOptions.find((option) => option.standard === nextStandard)
-
-    updateAuditStandard(nextStandard)
-
-    if (!audit.title.trim() || audit.title === getAuditTitleLabel(audit.auditType) || audit.title === 'Audit Report' || sharedAuditTemplateOptions.some((option) => option.suggestedTitle === audit.title)) {
-      updateAuditTitle(templateOption?.suggestedTitle ?? 'Audit Report')
-    }
-  }
+  })
+}
 
   function handleContinueTemplate() {
     const templateOption = selectedTemplateOption
@@ -116,7 +125,7 @@ export default function GenericAuditInfoPage() {
         >
           <div className="input-grid">
             <Field label="Audit template">
-              <select value={audit.standard} onChange={(event) => handleChangeTemplate(event.target.value)}>
+              <select value={audit.standard || ''} onChange={(event) => handleChangeTemplate(event.target.value)}>
                 <option value="">Select audit template</option>
                 {sharedAuditTemplateOptions.map((option) => (
                   <option key={option.id} value={option.standard}>
