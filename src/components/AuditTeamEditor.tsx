@@ -23,6 +23,7 @@ export default function AuditTeamEditor({
   const [searchValue, setSearchValue] = useState('')
   const [isSearchOpen, setIsSearchOpen] = useState(false)
   const searchRegionRef = useRef<HTMLDivElement | null>(null)
+  const inputRef = useRef<HTMLInputElement | null>(null)
   const selectedNames = useMemo(
     () => new Set([leadAuditor, ...auditTeam.map((participant) => participant.userName)].filter(Boolean)),
     [auditTeam, leadAuditor],
@@ -74,6 +75,7 @@ export default function AuditTeamEditor({
           <label className="field">
             <span>Add auditor / observer</span>
             <input
+              ref={inputRef}
               value={searchValue}
               onFocus={() => setIsSearchOpen(true)}
               onChange={(event) => {
@@ -91,7 +93,8 @@ export default function AuditTeamEditor({
                   key={user.id}
                   type="button"
                   className="participant-search-option"
-                  onClick={() => {
+                  onMouseDown={(event) => {
+                    event.preventDefault()
                     onAuditTeamChange([
                       ...auditTeam,
                       {
@@ -101,7 +104,8 @@ export default function AuditTeamEditor({
                       },
                     ])
                     setSearchValue('')
-                    setIsSearchOpen(false)
+                    setIsSearchOpen(true)
+                    setTimeout(() => inputRef.current?.focus(), 0)
                   }}
                 >
                   <strong>{user.name}</strong>
