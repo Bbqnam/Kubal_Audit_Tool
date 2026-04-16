@@ -19,7 +19,6 @@ export default function GenericAuditInfoPage() {
     genericAuditInfo,
     updateAuditInfo,
     updateAuditTeam,
-    updateAuditStandard,
     updateAuditTitle,
     updateAuditRecord,
     changeAuditType,
