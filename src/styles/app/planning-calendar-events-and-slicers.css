@@ -124,10 +124,14 @@
 .planning-cell-stack {
   display: grid;
   gap: 0.22rem;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .planning-calendar-event {
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
   display: grid;
   gap: 0.22rem;
   padding: 0.3rem 0.34rem;
@@ -136,6 +140,7 @@
   border-left-width: 4px;
   text-align: left;
   cursor: pointer;
+  overflow: hidden;
   transition: transform 120ms ease, box-shadow 120ms ease;
 }
 
@@ -150,6 +155,20 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: 0.28rem;
+  min-width: 0;
+}
+
+.planning-calendar-event-title-block {
+  min-width: 0;
+  flex: 1 1 auto;
+  display: grid;
+  gap: 0.08rem;
+}
+
+.planning-calendar-event-kicker {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .planning-calendar-event strong {
@@ -180,11 +199,13 @@
 
 .planning-calendar-event-actions {
   display: flex;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   gap: 0.16rem;
   justify-content: flex-end;
   margin-left: auto;
   flex: 0 0 auto;
+  max-width: 100%;
+  overflow: hidden;
 }
 
 .planning-calendar-event-action,
