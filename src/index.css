@@ -32,6 +32,27 @@
   --radius-xl: 1.5rem;
   --transition-base: 180ms cubic-bezier(0.22, 1, 0.36, 1);
   --transition-slow: 280ms cubic-bezier(0.22, 1, 0.36, 1);
+
+  /* Planning status palette — single source of truth for planned / in-progress / done / overdue */
+  --plan-planned: #2f6bb0;
+  --plan-planned-soft: rgba(53, 110, 194, 0.12);
+  --plan-planned-line: rgba(53, 110, 194, 0.24);
+  --plan-progress: #a9631a;
+  --plan-progress-soft: rgba(214, 139, 36, 0.14);
+  --plan-progress-line: rgba(214, 139, 36, 0.26);
+  --plan-done: #1f7a4d;
+  --plan-done-soft: rgba(34, 150, 96, 0.13);
+  --plan-done-line: rgba(34, 150, 96, 0.24);
+  --plan-late: #bb3729;
+  --plan-late-soft: rgba(197, 82, 68, 0.13);
+  --plan-late-line: rgba(197, 82, 68, 0.26);
+  --plan-upcoming: #937218;
+  --plan-upcoming-soft: rgba(191, 164, 89, 0.16);
+  --plan-upcoming-line: rgba(191, 164, 89, 0.3);
+
+  /* Planning surfaces — consistent card / cell fills */
+  --plan-cell: rgba(255, 255, 255, 0.86);
+  --plan-cell-muted: rgba(247, 249, 251, 0.82);
 }
 
 *,

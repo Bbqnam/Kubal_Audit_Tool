@@ -473,12 +473,11 @@
 }
 
 .dashboard-pulse {
-  border-color: rgba(32, 48, 69, 0.08);
+  border-color: var(--border);
   grid-template-columns: 1fr;
   background:
-    radial-gradient(circle at top left, rgba(244, 200, 107, 0.24), transparent 28%),
-    radial-gradient(circle at top right, rgba(96, 165, 250, 0.18), transparent 32%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.97) 0%, rgba(239, 245, 252, 0.95) 100%);
+    radial-gradient(130% 90% at 100% 0%, rgba(96, 165, 250, 0.07), transparent 55%),
+    var(--surface-strong);
   color: var(--text);
 }
 
@@ -628,7 +627,7 @@
 .dashboard-top-row .dashboard-action-card-compact p {
   min-width: 0;
   flex: 1 1 auto;
-  font-size: 0.66rem;
+  font-size: 0.72rem;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -645,29 +644,29 @@
 
 .dashboard-top-row .dashboard-action-card-compact .dashboard-date-pill,
 .dashboard-top-row .dashboard-action-card-compact .dashboard-meta-pill {
-  min-height: 1.08rem;
-  gap: 0.14rem;
-  padding: 0.04rem 0.24rem;
+  min-height: 1.3rem;
+  gap: 0.18rem;
+  padding: 0.08rem 0.34rem;
 }
 
 .dashboard-top-row .dashboard-action-card-compact .dashboard-date-pill small,
 .dashboard-top-row .dashboard-action-card-compact .dashboard-meta-pill small {
-  font-size: 0.55rem;
+  font-size: 0.62rem;
 }
 
 .dashboard-top-row .dashboard-action-card-compact .dashboard-date-pill strong,
 .dashboard-top-row .dashboard-action-card-compact .dashboard-meta-pill strong {
-  font-size: 0.62rem;
+  font-size: 0.66rem;
 }
 
 .dashboard-top-row .dashboard-action-card-compact .dashboard-date-pill span {
-  font-size: 0.58rem;
+  font-size: 0.64rem;
 }
 
 .dashboard-top-row .dashboard-action-card-compact .status-badge {
-  min-height: 1.08rem;
-  padding: 0.04rem 0.28rem;
-  font-size: 0.57rem;
+  min-height: 1.3rem;
+  padding: 0.08rem 0.36rem;
+  font-size: 0.63rem;
 }
 
 .dashboard-action-meta-compact {
@@ -679,10 +678,10 @@
 }
 
 .dashboard-top-row .dashboard-action-meta-compact .dashboard-standard-chip {
-  min-height: 1.04rem;
-  max-width: min(42%, 8rem);
-  padding: 0.04rem 0.24rem;
-  font-size: 0.54rem;
+  min-height: 1.3rem;
+  max-width: min(46%, 9rem);
+  padding: 0.08rem 0.36rem;
+  font-size: 0.62rem;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -744,7 +743,7 @@
 }
 
 .dashboard-pulse::after {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.45), transparent 30%);
+  background: none;
 }
 
 .dashboard-pulse-head {

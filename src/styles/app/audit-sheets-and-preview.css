@@ -655,6 +655,7 @@
 .dashboard-pulse-main {
   display: grid;
   gap: 0.82rem;
+  align-content: start;
 }
 
 .dashboard-pulse-heading {
